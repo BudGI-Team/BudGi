@@ -24,15 +24,17 @@ android {
             useSupportLibrary = true
         }
 
-        // Backend API URL — use 10.0.2.2 for emulator, 10.30.189.75 for device over LAN
-        buildConfigField("String", "API_BASE_URL", "\"http://10.30.189.75:5000\"")
+        // Backend API URL — Live Render Cloud Backend
+        buildConfigField("String", "API_BASE_URL", "\"https://budgi-5nas.onrender.com\"")
         buildConfigField("String", "API_VERSION", "\"v1\"")
     }
 
     buildTypes {
         debug {
             isMinifyEnabled = false
-            // Debug uses cleartext-allowed local IPs via network_security_config.xml
+            // Debug build points to live Render cloud backend
+            buildConfigField("String", "API_BASE_URL", "\"https://budgi-5nas.onrender.com\"")
+            buildConfigField("String", "API_VERSION", "\"v1\"")
         }
         release {
             isMinifyEnabled = true
@@ -42,7 +44,7 @@ android {
                 "proguard-rules.pro"
             )
             // Production API URL — HTTPS enforced via network_security_config.xml
-            buildConfigField("String", "API_BASE_URL", "\"https://api.budgi.app\"")
+            buildConfigField("String", "API_BASE_URL", "\"https://budgi-5nas.onrender.com\"")
             buildConfigField("String", "API_VERSION", "\"v1\"")
         }
     }

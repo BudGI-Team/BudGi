@@ -99,6 +99,16 @@ app.use(
   }),
 );
 
+// ── 8.5 Root welcome endpoint ────────────────────────────────────────────────
+app.get('/', (_req, res) => {
+  res.json({
+    success: true,
+    message: 'BudGi API engine is running',
+    version: '3.0.0',
+    status: 'healthy',
+  });
+});
+
 // ── 9. Health check — no auth, no rate limit ─────────────────────────────────
 app.get('/health', (_req, res) => {
   res.json({
