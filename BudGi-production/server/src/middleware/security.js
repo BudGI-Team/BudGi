@@ -18,7 +18,7 @@ const logger = require('../utils/logger');
 // ── Allowed origins ───────────────────────────────────────────────────────────
 
 const RAW_ORIGINS = env.CLIENT_ORIGIN.split(',')
-  .map((o) => o.trim())
+  .map((o) => o.trim().replace(/\/+$/, ''))
   .filter(Boolean);
 const ORIGIN_SET = new Set(RAW_ORIGINS);
 
@@ -33,7 +33,15 @@ function corsOriginHandler(origin, callback) {
   // Allow non-browser clients (Postman, mobile apps) — no Origin header
   if (!origin) return callback(null, true);
 
-  if (ORIGIN_SET.has(origin)) {
+  const cleanOrigin = origin.replace(/\/+$/, '');
+
+  // Allow wildcard if configured
+  if (ORIGIN_SET.has('*') || ORIGIN_SET.has(cleanOrigin)) {
+    return callback(null, true);
+  }
+
+  // Allow any Vercel domain or budgiweb.app custom domain
+  if (/^https:\/\/[a-zA-Z0-9_.-]+\.vercel\.app$/.test(cleanOrigin) || cleanOrigin.endsWith('budgiweb.app')) {
     return callback(null, true);
   }
 
