@@ -1,0 +1,53 @@
+<resources>
+    <string name="app_name">BudGi</string>
+
+    <!-- App Shortcuts -->
+    <string name="shortcut_add_transaction">Add Expense</string>
+    <string name="shortcut_add_transaction_long">Record a new transaction</string>
+    <string name="shortcut_ai_chat">BudGi AI</string>
+    <string name="shortcut_ai_chat_long">Chat with your AI financial advisor</string>
+    <string name="shortcut_sync">Sync SMS</string>
+    <string name="shortcut_sync_long">Scan and auto-sync bank SMS</string>
+    <string name="shortcut_budgets">Budgets</string>
+    <string name="shortcut_budgets_long">View monthly category budgets</string>
+
+    <!-- App Widget -->
+    <string name="widget_description">Real-time safe-to-spend balance, today\'s expenses, and instant transaction shortcuts.</string>
+
+    <!-- Core UI Strings -->
+    <string name="dashboard_title">Home</string>
+    <string name="budget_title">Planner</string>
+    <string name="transactions_title">Activity</string>
+    <string name="insights_title">Analysis</string>
+    <string name="goals_title">Goals</string>
+    <string name="spaces_title">Spaces</string>
+    <string name="profile_title">Profile</string>
+    <string name="copilot_title">Copilot</string>
+    <string name="total_balance">Total Balance</string>
+    <string name="monthly_budget">Monthly Budget</string>
+    <string name="recent_activity">Recent Activity</string>
+    <string name="see_all">See All</string>
+    <string name="good_morning">Good Morning</string>
+    <string name="good_afternoon">Good Afternoon</string>
+    <string name="good_evening">Good Evening</string>
+    <string name="syncing_sms">Syncing SMS...</string>
+    <string name="sync_complete">Sync Complete!</string>
+    
+    <!-- Added common strings -->
+    <string name="login">Log In</string>
+    <string name="signup">Sign Up</string>
+    <string name="email">Email Address</string>
+    <string name="password">Password</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete">Delete</string>
+    <string name="edit">Edit</string>
+    <string name="settings">Settings</string>
+    <string name="logout">Log Out</string>
+    <string name="error_occurred">An error occurred. Please try again.</string>
+    <string name="retry">Retry</string>
+
+    <!-- OAuth Client IDs (PLACEHOLDERS) -->
+    <!-- Replace with your actual Firebase Web Client ID or Google Cloud OAuth Client ID -->
+    <string name="google_server_client_id">YOUR_GOOGLE_CLIENT_ID_HERE.apps.googleusercontent.com</string>
+</resources>

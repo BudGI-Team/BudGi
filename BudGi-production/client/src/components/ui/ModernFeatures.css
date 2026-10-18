@@ -1,0 +1,485 @@
+/* ═══════════════════════════════════════════════════════════════
+   DEVELOPER-FRIENDLY FEATURES SECTION (Compact & Realistic)
+   ═══════════════════════════════════════════════════════════════ */
+
+.dev-features-container {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+@media (max-width: 768px) {
+  .dev-features-container {
+    padding: 0 16px;
+    gap: 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .dev-features-container {
+    padding: 0 12px;
+    gap: 20px;
+  }
+}
+
+/* ── Tab Selector ── */
+.dev-tab-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+@media (max-width: 860px) {
+  .dev-tab-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    justify-content: flex-start;
+    padding: 6px 8px;
+    border-radius: var(--radius-xl);
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .dev-tab-nav::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+[data-theme='light'] .dev-tab-nav {
+  background: var(--bg-surface);
+  border-color: var(--border);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+.dev-tab-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border-radius: var(--radius-full);
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s ease;
+  z-index: 1;
+}
+
+.dev-tab-btn:hover {
+  color: var(--text-primary);
+}
+
+.dev-tab-btn.active {
+  color: #ffffff;
+}
+
+[data-theme='light'] .dev-tab-btn.active {
+  color: #ffffff;
+}
+
+.dev-tab-icon {
+  flex-shrink: 0;
+}
+
+.dev-tab-indicator {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-bright) 100%);
+  box-shadow: 0 2px 12px var(--accent-glow);
+  z-index: -1;
+}
+
+/* ── Active Module Console Shell ── */
+.dev-console-shell {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-2xl);
+  overflow: hidden;
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+}
+
+[data-theme='light'] .dev-console-shell {
+  background: var(--bg-surface);
+  border-color: var(--border-strong);
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(0, 0, 0, 0.04) inset;
+}
+
+.dev-console-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 1.35fr;
+  min-height: 440px;
+}
+
+@media (max-width: 960px) {
+  .dev-console-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Left: Spec Details ── */
+.dev-spec-col {
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-right: 1px solid var(--border);
+}
+
+@media (max-width: 960px) {
+  .dev-spec-col {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 28px;
+  }
+}
+
+@media (max-width: 600px) {
+  .dev-spec-col {
+    padding: 20px 16px;
+  }
+}
+
+.dev-module-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  width: fit-content;
+  margin-bottom: 18px;
+}
+
+.dev-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-bright);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.dev-module-badge code {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-bright);
+  letter-spacing: 0.06em;
+}
+
+.dev-spec-title {
+  font-family: var(--font-display);
+  font-size: clamp(20px, 4vw, 24px);
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  margin-bottom: 12px;
+}
+
+.dev-spec-desc {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 600px) {
+  .dev-spec-desc {
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+}
+
+.dev-metrics-list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 640px) {
+  .dev-metrics-list {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+}
+
+@media (max-width: 420px) {
+  .dev-metrics-list {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+
+.dev-metric-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dev-metric-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.dev-metric-val {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* ── Right: Code Console ── */
+.dev-terminal-col {
+  display: flex;
+  flex-direction: column;
+  background: #090a10;
+  border-left: 1px solid rgba(255, 255, 255, 0.05);
+  min-width: 0;
+}
+
+[data-theme='light'] .dev-terminal-col {
+  background: #0f111a;
+  border-left-color: rgba(0, 0, 0, 0.08);
+}
+
+.dev-terminal-chrome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  gap: 8px;
+}
+
+.dev-terminal-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.dot-red {
+  background: #ff5f56;
+}
+.dot-yellow {
+  background: #ffbd2e;
+}
+.dot-green {
+  background: #27c93f;
+}
+
+.dev-terminal-filename {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.dev-terminal-filename code {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dev-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.dev-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.dev-terminal-body {
+  flex: 1;
+  padding: 24px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  display: block;
+}
+
+@media (max-width: 600px) {
+  .dev-terminal-body {
+    padding: 16px 14px;
+  }
+}
+
+.dev-code-block {
+  margin: 0;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: #e2e8f0;
+  white-space: pre;
+}
+
+@media (max-width: 600px) {
+  .dev-code-block {
+    font-size: 11.5px;
+    line-height: 1.55;
+  }
+}
+
+.dev-terminal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 18px;
+  background: rgba(255, 255, 255, 0.02);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.dev-footer-pill {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--green);
+}
+
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green-dim);
+}
+
+.latency-pill {
+  color: var(--accent-bright);
+}
+
+/* ── 4 Architecture Bento Pillars ── */
+.dev-bento-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 1024px) {
+  .dev-bento-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .dev-bento-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dev-bento-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.25s ease;
+}
+
+.dev-bento-card:hover {
+  border-color: var(--border-accent);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+}
+
+.dev-bento-icon-wrap {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--accent-dim);
+  border: 1px solid var(--border-accent);
+  color: var(--accent-bright);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.dev-bento-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  letter-spacing: -0.01em;
+}
+
+.dev-bento-desc {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  margin-bottom: 16px;
+  flex: 1;
+}
+
+.dev-bento-tag code {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--accent-bright);
+  background: var(--bg-elevated);
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  display: inline-block;
+}

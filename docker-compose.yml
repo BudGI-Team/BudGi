@@ -1,0 +1,24 @@
+# Docker Compose — Local Development
+# Usage: docker compose up -d
+# This starts MongoDB and Redis for local development.
+# Your server and client still run natively via npm.
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: budgi-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - budgi_mongo_data:/data/db
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: budgi-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+volumes:
+  budgi_mongo_data:

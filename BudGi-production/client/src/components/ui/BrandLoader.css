@@ -1,0 +1,107 @@
+/* BudGi Brand Loader — Minimalist & Developer-Grade Aesthetic */
+
+.brand-loader-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  width: 100%;
+  font-family: var(--font-body);
+  user-select: none;
+}
+
+.brand-loader-wrap.is-fullpage {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 99999;
+  background: var(--bg-base, #07090e);
+}
+
+.brand-loader-emblem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-surface, #0f1420);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+.brand-loader-wrap.size-sm .brand-loader-emblem {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+}
+
+.brand-loader-wrap.size-md .brand-loader-emblem {
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
+}
+
+.brand-loader-wrap.size-lg .brand-loader-emblem {
+  width: 76px;
+  height: 76px;
+  border-radius: 20px;
+}
+
+.brand-loader-img {
+  width: 68%;
+  height: 68%;
+  object-fit: contain;
+  animation: brand-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes brand-breathe {
+  0%, 100% {
+    transform: scale(0.95);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.03);
+    opacity: 1;
+    filter: drop-shadow(0 2px 10px rgba(16, 185, 129, 0.25));
+  }
+}
+
+/* Linear progress line */
+.brand-loader-track {
+  width: 120px;
+  height: 2.5px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+
+.brand-loader-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 45%;
+  background: linear-gradient(90deg, transparent, var(--green, #1DBF81), var(--accent, #38BDF8), transparent);
+  border-radius: 999px;
+  animation: brand-sweep 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes brand-sweep {
+  0% {
+    left: -45%;
+  }
+  100% {
+    left: 105%;
+  }
+}
+
+.brand-loader-text {
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary, #94a3b8);
+  margin-top: -4px;
+}

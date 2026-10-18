@@ -1,0 +1,66 @@
+.shell {
+  display: flex;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--bg-base);
+}
+
+.shell-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  transition: margin-left var(--t-base);
+}
+
+.shell-content {
+  flex: 1;
+  position: relative;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 0 32px 0;
+  scroll-behavior: smooth;
+}
+
+/* Mobile overlay */
+.shell-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 4, 10, 0.7);
+  z-index: 40;
+  backdrop-filter: blur(4px);
+}
+
+@media (max-width: 768px) {
+  .shell {
+    position: relative;
+  }
+  .shell-main {
+    margin-left: 0 !important;
+    width: 100%;
+  }
+  .shell-overlay {
+    display: block;
+  }
+}
+
+/* ─── Keyboard shortcut toast ─── */
+.kbd-toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  z-index: 9999;
+  pointer-events: none;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}

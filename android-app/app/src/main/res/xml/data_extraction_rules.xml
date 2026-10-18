@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Data extraction rules for Android 12+ (cloud backup) -->
+<data-extraction-rules>
+    <cloud-backup>
+        <!-- Do NOT back up the database or secure preferences (sensitive financial data) -->
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="budgi_secure_prefs.xml" />
+        <exclude domain="sharedpref" path="budgi_prefs.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <!-- Allow device-to-device transfer for preferences only (not DB) -->
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="budgi_secure_prefs.xml" />
+    </device-transfer>
+</data-extraction-rules>

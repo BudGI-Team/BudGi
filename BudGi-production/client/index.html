@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="BudGi — Master your money. Shape your future. AI-powered expense tracker built for India."
+    />
+    <meta name="theme-color" content="#04040A" />
+    <title>BudGi — Master your money. Shape your future.</title>
+
+    <!-- Premium Fonts: Inter (body) via Google Fonts + Billabong (display/brand) via CDN -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://db.onlinewebfonts.com/c/6d32b8e06f40fb7698cfb714b9e7975d?family=Billabong+W00+Regular"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <!--
+      Global grain canvas overlay — renders once, sits at z-index 9999
+      pointer-events: none so it never blocks clicks.
+      opacity is very subtle (0.03) — just enough texture, no distraction.
+    -->
+    <canvas
+      id="grain-canvas"
+      style="
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        pointer-events: none;
+        z-index: 9999;
+        opacity: 0.035;
+        mix-blend-mode: overlay;
+      "
+    ></canvas>
+
+    <script>
+      // High-performance animated grain noise — uses pre-rendered repeating patterns
+      (function () {
+        const canvas = document.getElementById('grain-canvas');
+        const ctx = canvas.getContext('2d');
+        let animId;
+
+        function resize() {
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
+        }
+
+        // Pre-render 5 frames of 128x128 noise patterns once on startup to save heavy CPU loops
+        const patternSize = 128;
+        const patternCanvases = [];
+        for (let f = 0; f < 5; f++) {
+          const pCanvas = document.createElement('canvas');
+          pCanvas.width = patternSize;
+          pCanvas.height = patternSize;
+          const pCtx = pCanvas.getContext('2d');
+          const imgData = pCtx.createImageData(patternSize, patternSize);
+          const data = imgData.data;
+          for (let i = 0; i < data.length; i += 4) {
+            const v = (Math.random() * 255) | 0;
+            data[i] = data[i + 1] = data[i + 2] = v;
+            data[i + 3] = 255;
+          }
+          pCtx.putImageData(imgData, 0, 0);
+          patternCanvases.push(pCanvas);
+        }
+
+        let frameIndex = 0;
+        function loop() {
+          if (canvas.width > 0 && canvas.height > 0) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const pattern = ctx.createPattern(patternCanvases[frameIndex], 'repeat');
+            ctx.fillStyle = pattern;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            frameIndex = (frameIndex + 1) % patternCanvases.length;
+          }
+          animId = setTimeout(loop, 80);
+        }
+
+        resize();
+        loop();
+        window.addEventListener('resize', resize);
+      })();
+    </script>
+
+    <script type="module">
+      if ('serviceWorker' in navigator) {
+        if (import.meta.env.PROD) {
+          window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js').then(
+              (registration) => {
+                console.log('PWA ServiceWorker registration successful with scope: ', registration.scope);
+              },
+              (err) => {
+                console.log('PWA ServiceWorker registration failed: ', err);
+              },
+            );
+          });
+        } else {
+          // Dev mode: unregister to avoid caching Vite's HMR WebSocket tokens
+          navigator.serviceWorker.getRegistrations().then((registrations) => {
+            for (let registration of registrations) {
+              registration.unregister();
+            }
+          });
+        }
+      }
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

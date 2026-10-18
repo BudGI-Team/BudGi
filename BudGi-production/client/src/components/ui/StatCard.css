@@ -1,0 +1,151 @@
+.stat-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.25);
+  transition:
+    border-color var(--t-base),
+    box-shadow var(--t-base),
+    transform var(--t-base);
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.stat-card-accent::before {
+  background: linear-gradient(90deg, var(--accent), var(--accent-bright));
+}
+.stat-card-green::before {
+  background: linear-gradient(90deg, var(--green), #6ee7b7);
+}
+.stat-card-red::before {
+  background: linear-gradient(90deg, var(--red), #fda4af);
+}
+.stat-card-blue::before {
+  background: linear-gradient(90deg, var(--blue), #93c5fd);
+}
+.stat-card-amber::before {
+  background: linear-gradient(90deg, var(--amber), #fcd34d);
+}
+
+.stat-card:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+}
+
+.stat-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.stat-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  letter-spacing: 0.01em;
+}
+
+.stat-icon-wrap {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+}
+
+.stat-icon-accent {
+  background: var(--accent-dim);
+  color: var(--accent-bright);
+  border-color: var(--border-accent);
+}
+.stat-icon-green {
+  background: var(--green-dim);
+  color: var(--green);
+  border-color: rgba(48, 214, 140, 0.2);
+}
+.stat-icon-red {
+  background: var(--red-dim);
+  color: var(--red);
+  border-color: rgba(245, 97, 106, 0.2);
+}
+.stat-icon-blue {
+  background: rgba(77, 156, 245, 0.15);
+  color: var(--blue);
+  border-color: rgba(77, 156, 245, 0.2);
+}
+.stat-icon-amber {
+  background: var(--amber-dim);
+  color: var(--amber);
+  border-color: rgba(245, 166, 35, 0.2);
+}
+
+.stat-value {
+  font-family: var(--font-body);
+  font-feature-settings: 'tnum';
+  font-variant-numeric: tabular-nums;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  line-height: 1.1;
+  margin-bottom: 10px;
+}
+
+.stat-bottom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.stat-subvalue {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.stat-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.trend-up {
+  background: var(--green-dim);
+  color: var(--green);
+}
+.trend-down {
+  background: var(--red-dim);
+  color: var(--red);
+}
+.trend-flat {
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+}
+
+.trend-label {
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: 2px;
+}
+
+.stat-skeleton {
+  padding: 4px 0;
+}

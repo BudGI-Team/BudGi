@@ -1,0 +1,87 @@
+# Android / Gradle
+android-app/.gradle/
+android-app/.kotlin/
+android-app/build/
+android-app/app/build/
+android-app/local.properties
+android-app/brace_check.txt
+android-app/*.log
+android-app/captures/
+android-app/.cxx/
+
+# Android Signing & Credentials (CRITICAL: Never commit keys/keystores)
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+key.properties
+signing.properties
+google-services.json
+
+# Android Build outputs
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Node dependencies
+node_modules/
+**/node_modules/
+BudGi-production/node_modules/
+BudGi-production/client/node_modules/
+BudGi-production/server/node_modules/
+
+# Vite build output
+dist/
+**/dist/
+BudGi-production/client/dist/
+
+# Server scratch & test files
+BudGi-production/server/scratch/
+BudGi-production/server/scratch_test.js
+BudGi-production/server/eng.traineddata
+
+# Upload artifacts (runtime-generated)
+BudGi-production/server/public/uploads/*
+!BudGi-production/server/public/uploads/.gitkeep
+
+# Lock files (optional: keep or ignore)
+BudGi-production/package-lock.json
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+**/*.log
+
+# Environment & Secrets (CRITICAL: Never commit secret env files)
+.env
+.env.*
+*.env
+*.env.*
+**/.env
+**/.env.*
+!*.env.example
+!**/*.env.example
+*.secret
+*.credentials
+
+# IDE & Editor files
+.vscode/
+**/.vscode/
+.idea/
+**/.idea/
+*.iml
+**/*.iml
+
+# Agents / AI workspace
+.agents/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
