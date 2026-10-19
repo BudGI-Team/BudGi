@@ -125,3 +125,10 @@ All responses follow the standard envelope format:
   "data": { ... }
 }
 ```
+
+---
+
+## 👥 Developers
+- **Anuj** ([@anujrathore9](https://github.com/anujrathore9))
+- **Divyanshu** ([@DivyanshuDixit01](https://github.com/DivyanshuDixit01))
+
