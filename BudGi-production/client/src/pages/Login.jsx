@@ -10,23 +10,38 @@ import './Auth.css';
 export default function Login() {
   const [form, setForm] = useState({ email: '', password: '' });
   const [showPass, setShowPass] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const { mutate: login, isPending } = useLogin();
 
-  const handle = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+  const handle = (e) => {
+    setErrorMessage('');
+    setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+  };
+
   const submit = (e) => {
     e.preventDefault();
+    setErrorMessage('');
     if (!form.email || !form.password) {
+      setErrorMessage('Please fill in all required fields.');
       toast.error('Please fill in all required fields.');
       return;
     }
     if (form.password.length < 8) {
+      setErrorMessage('Password must be at least 8 characters long.');
       toast.error('Password must be at least 8 characters long.');
       return;
     }
-    login({
-      email: form.email.trim().toLowerCase(),
-      password: form.password,
-    });
+    login(
+      {
+        email: form.email.trim().toLowerCase(),
+        password: form.password,
+      },
+      {
+        onError: (err) => {
+          setErrorMessage(err.userMessage || 'Invalid email or password. Please try again.');
+        },
+      },
+    );
   };
 
   return (
@@ -83,6 +98,12 @@ export default function Login() {
             <h1 className="auth-title">Welcome back</h1>
             <p className="auth-sub">Sign in to your financial dashboard</p>
           </div>
+
+          {errorMessage && (
+            <div className="auth-alert-error" role="alert">
+              <span>{errorMessage}</span>
+            </div>
+          )}
 
           <form className="auth-form" onSubmit={submit}>
             <div className="auth-field">

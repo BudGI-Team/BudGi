@@ -35,9 +35,15 @@ export function WebSocketProvider({ children }) {
 
       const baseUrl = import.meta.env.VITE_API_URL
         ? import.meta.env.VITE_API_URL
-        : (typeof window !== 'undefined' && window.location.hostname && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1')
-          ? `http://${window.location.hostname}:5000`
-          : 'http://localhost:5000';
+        : typeof window !== 'undefined' &&
+            (window.location.hostname.includes('vercel.app') || window.location.hostname.includes('budgi'))
+          ? 'https://budgi-175t.onrender.com'
+          : typeof window !== 'undefined' &&
+              window.location.hostname &&
+              window.location.hostname !== 'localhost' &&
+              window.location.hostname !== '127.0.0.1'
+            ? `http://${window.location.hostname}:5000`
+            : 'http://localhost:5000';
       const wsUrl = baseUrl.replace(/^http/, 'ws').replace(/\/api$/, '') + '/ws';
 
       const socket = new WebSocket(wsUrl);

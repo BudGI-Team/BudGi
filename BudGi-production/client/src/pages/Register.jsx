@@ -10,25 +10,41 @@ import './Auth.css';
 export default function Register() {
   const [searchParams] = useSearchParams();
   const selectedPlan = searchParams.get('plan') || 'free';
-  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', username: '' });
   const [showPass, setShowPass] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const { mutate: register, isPending } = useRegister();
 
-  const handle = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+  const handle = (e) => {
+    setErrorMessage('');
+    setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+  };
+
   const submit = (e) => {
     e.preventDefault();
+    setErrorMessage('');
     if (!form.name || !form.email || !form.password) {
+      setErrorMessage('Please fill in all required fields.');
       toast.error('Please fill in all required fields.');
       return;
     }
     if (form.password.length < 8) {
+      setErrorMessage('Password must be at least 8 characters long.');
       toast.error('Password must be at least 8 characters long.');
       return;
     }
-    register({
+    const payload = {
       name: form.name.trim(),
       email: form.email.trim().toLowerCase(),
       password: form.password,
+    };
+    if (form.username && form.username.trim()) {
+      payload.username = form.username.trim().replace(/^@/, '').toLowerCase();
+    }
+    register(payload, {
+      onError: (err) => {
+        setErrorMessage(err.userMessage || 'Registration failed. Please try again.');
+      },
     });
   };
 
@@ -97,6 +113,12 @@ export default function Register() {
             )}
           </div>
 
+          {errorMessage && (
+            <div className="auth-alert-error" role="alert">
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
           <form className="auth-form" onSubmit={submit}>
             <div className="auth-field">
               <label className="auth-label">Full Name</label>
@@ -111,6 +133,25 @@ export default function Register() {
                   placeholder="Rahul Sharma"
                   required
                   autoComplete="name"
+                />
+              </div>
+            </div>
+
+            <div className="auth-field">
+              <label className="auth-label">
+                Username <span style={{ opacity: 0.6, fontSize: '11px', fontWeight: 400 }}>(optional)</span>
+              </label>
+              <div className="auth-input-wrap">
+                <span style={{ position: 'absolute', left: 14, color: 'var(--text-muted)', fontSize: 14 }}>@</span>
+                <input
+                  className="auth-input"
+                  style={{ paddingLeft: 34 }}
+                  type="text"
+                  name="username"
+                  value={form.username}
+                  onChange={handle}
+                  placeholder="rahul_sharma"
+                  autoComplete="username"
                 />
               </div>
             </div>

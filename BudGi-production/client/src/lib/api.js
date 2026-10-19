@@ -9,8 +9,14 @@ const getBaseURL = () => {
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
-  if (typeof window !== 'undefined' && window.location.hostname && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-    return `http://${window.location.hostname}:5000`;
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname || '';
+    if (hostname.includes('vercel.app') || hostname.includes('budgi')) {
+      return 'https://budgi-175t.onrender.com';
+    }
+    if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      return `http://${hostname}:5000`;
+    }
   }
   return 'http://localhost:5000';
 };
@@ -38,11 +44,24 @@ api.interceptors.response.use(
     const message = envelope?.errors?.[0]?.message || envelope?.message || err.message || 'Something went wrong';
 
     if (status === 401) {
-      localStorage.removeItem('budgi_token');
-      localStorage.removeItem('budgi_user');
-      localStorage.removeItem('budgi-store');
-      window.location.href = '/login';
-      return Promise.reject(err);
+      const url = err.config?.url || '';
+      const isAuthEndpoint =
+        url.includes('/auth/login') ||
+        url.includes('/auth/register') ||
+        url.includes('/auth/forgot-password') ||
+        url.includes('/auth/reset-password') ||
+        url.includes('/auth/check-username');
+
+      if (!isAuthEndpoint) {
+        localStorage.removeItem('budgi_token');
+        localStorage.removeItem('budgi_user');
+        localStorage.removeItem('budgi-store');
+        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+      }
+
+      return Promise.reject({ ...err, userMessage: message });
     }
 
     // Rate limit — show a single toast, don't spam the user

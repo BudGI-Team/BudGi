@@ -52,6 +52,34 @@ function buildTokenPair(user) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Unique Username Generator
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function generateUniqueUsername(base) {
+  const cleanBase = (base || 'user')
+    .toLowerCase()
+    .replace(/^@/, '')
+    .replace(/[^a-z0-9_]/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 18) || 'user';
+
+  const prefix = cleanBase.length >= 3 ? cleanBase : `${cleanBase}_bg`;
+  let candidate = prefix;
+  let attempts = 0;
+
+  while (await userRepo.findByUsername(candidate)) {
+    attempts++;
+    const suffix = Math.floor(1000 + Math.random() * 9000);
+    candidate = `${prefix.slice(0, 20)}_${suffix}`;
+    if (attempts > 20) {
+      candidate = `user_${Date.now().toString(36)}`;
+      break;
+    }
+  }
+  return candidate;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Register
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -81,6 +109,8 @@ async function register({ name, email, password, username, dateOfBirth, avatar, 
     if (uExists) {
       throw Object.assign(new Error('Username already taken'), { statusCode: 400 });
     }
+  } else {
+    cleanUsername = await generateUniqueUsername(email.split('@')[0] || name);
   }
 
   const hashed = await bcrypt.hash(password, SALT_ROUNDS);
@@ -255,9 +285,12 @@ async function googleLogin(idToken) {
     const randomPassword = crypto.randomBytes(32).toString('hex');
     const hashed = await bcrypt.hash(randomPassword, SALT_ROUNDS);
 
+    const googleUsername = await generateUniqueUsername(cleanEmail.split('@')[0] || name);
+
     user = await userRepo.create({
       name: (name || cleanEmail.split('@')[0]).trim(),
       email: cleanEmail,
+      username: googleUsername,
       password: hashed,
       profileImage: picture || null,
       isEmailVerified: true,
