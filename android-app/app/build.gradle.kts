@@ -25,7 +25,7 @@ android {
         }
 
         // Backend API URL — Live Render Cloud Backend
-        buildConfigField("String", "API_BASE_URL", "\"https://budgi-ze46.onrender.com\"")
+        buildConfigField("String", "API_BASE_URL", "\"https://budgi-175t.onrender.com\"")
         buildConfigField("String", "API_VERSION", "\"v1\"")
     }
 
@@ -51,7 +51,7 @@ android {
                 signingConfig = signingConfigs.getByName("release")
             }
             // Debug build points to live Render cloud backend
-            buildConfigField("String", "API_BASE_URL", "\"https://budgi-ze46.onrender.com\"")
+            buildConfigField("String", "API_BASE_URL", "\"https://budgi-175t.onrender.com\"")
             buildConfigField("String", "API_VERSION", "\"v1\"")
         }
         release {
@@ -66,7 +66,7 @@ android {
                 "proguard-rules.pro"
             )
             // Production API URL — HTTPS enforced via network_security_config.xml
-            buildConfigField("String", "API_BASE_URL", "\"https://budgi-ze46.onrender.com\"")
+            buildConfigField("String", "API_BASE_URL", "\"https://budgi-175t.onrender.com\"")
             buildConfigField("String", "API_VERSION", "\"v1\"")
         }
     }

@@ -323,13 +323,20 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     private fun parseErrorMessage(errorBody: String): String {
+        if (errorBody.isBlank()) return "Server returned an empty error response."
         return try {
             val gson = com.google.gson.Gson()
             val type = object : com.google.gson.reflect.TypeToken<ApiResponse<Any>>() {}.type
             val error = gson.fromJson<ApiResponse<Any>>(errorBody, type)
-            error.errors?.firstOrNull()?.message ?: error.message
+            error.errors?.firstOrNull()?.message ?: error.message.ifBlank { "Authentication request failed." }
         } catch (_: Exception) {
-            "Something went wrong"
+            when {
+                errorBody.contains("404") || errorBody.contains("Not Found", ignoreCase = true) ->
+                    "Service endpoint not found (404). Please verify the server URL."
+                errorBody.contains("502") || errorBody.contains("Bad Gateway", ignoreCase = true) || errorBody.contains("503") ->
+                    "Backend server is temporarily sleeping or restarting. Please try again in 30 seconds."
+                else -> errorBody.take(120).ifBlank { "Something went wrong. Please try again." }
+            }
         }
     }
 
