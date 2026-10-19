@@ -50,6 +50,8 @@ import HowItWorksPipeline from '../components/ui/HowItWorksPipeline';
 import useStore from '../store/useStore';
 import budgiLogo from '../logo/budgi-logo-new.png';
 import toast from 'react-hot-toast';
+import DownloadModal from '../components/ui/DownloadModal';
+import '../components/ui/DownloadModal.css';
 import './Landing.css';
 
 const fadeUp = {
@@ -325,6 +327,17 @@ export default function Landing() {
   const isAuthenticated = Boolean(token && user);
   const isDark = theme === 'dark';
   const [legalModal, setLegalModal] = useState(null);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+    };
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   useEffect(() => {
     const handleHash = () => {
@@ -342,7 +355,7 @@ export default function Landing() {
     <>
       <div className="landing">
         {/* NAVBAR */}
-        <nav className="landing-nav">
+        <nav className={`landing-nav ${isScrolled ? 'scrolled' : ''}`}>
           <div className="landing-nav-inner">
             <motion.div
               initial={{ opacity: 0, y: -6 }}
@@ -569,7 +582,7 @@ export default function Landing() {
                 <MagneticBtn to={isAuthenticated ? '/app/dashboard' : '/register'} className="btn-hero-primary">
                   {isAuthenticated ? 'Open Dashboard' : 'Start for free'} <ArrowUpRight size={17} />
                 </MagneticBtn>
-                <MagneticBtn href="#mobile-app" className="btn-hero-ghost">
+                <MagneticBtn onClick={() => setShowDownloadModal(true)} className="btn-hero-ghost">
                   <AndroidSVG size={18} /> Android app
                 </MagneticBtn>
               </motion.div>
@@ -751,17 +764,14 @@ export default function Landing() {
                 </div>
                 <div className="app-download-row">
                   <MagneticBtn
-                    onClick={() =>
-                      toast('BudGi native Android APK is ready in repository builds. Google Play Store listing coming soon!', {
-                        icon: '🤖',
-                      })
-                    }
+                    onClick={() => setShowDownloadModal(true)}
                     className="btn-primary app-download-btn"
+                    id="download-android-native-btn"
                   >
                     <PlayStoreSVG />
                     <div className="app-btn-text">
-                      <span className="app-btn-sub">Native Build</span>
-                      <span className="app-btn-main">Android App</span>
+                      <span className="app-btn-sub">Native APK · v1.1.0</span>
+                      <span className="app-btn-main">Download Android Native</span>
                     </div>
                   </MagneticBtn>
                   <div className="app-coming-info">
@@ -1173,7 +1183,7 @@ export default function Landing() {
                     <MagneticBtn to={isAuthenticated ? '/app/dashboard' : '/register'} className="btn-hero-primary hc-main-btn">
                       {isAuthenticated ? 'Open Dashboard' : 'Start for free'} <ArrowUpRight size={17} />
                     </MagneticBtn>
-                    <MagneticBtn href="#mobile-app" className="btn-hero-ghost hc-ghost-btn">
+                    <MagneticBtn onClick={() => setShowDownloadModal(true)} className="btn-hero-ghost hc-ghost-btn">
                       <AndroidSVG size={16} /> Get Android app
                     </MagneticBtn>
                   </div>
@@ -1328,6 +1338,8 @@ export default function Landing() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <DownloadModal isOpen={showDownloadModal} onClose={() => setShowDownloadModal(false)} />
     </>
   );
 }

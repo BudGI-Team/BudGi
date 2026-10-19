@@ -98,9 +98,15 @@ const removeDeviceToken = asyncHandler(async (req, res) => {
   return ok(res, result);
 });
 
-// DELETE /api/auth/account — permanently delete user account + all data (Google Play Policy Compliant)
+// DELETE /api/v1/auth/account & /api/v1/auth/me — permanently delete user account + all data from MongoDB
 const deleteAccount = asyncHandler(async (req, res) => {
   const userId = req.user.id;
+  const mongoose = require('mongoose');
+  const path = require('path');
+  const fs = require('fs');
+  const logger = require('../../../utils/logger');
+  const cache = require('../../../utils/cacheService');
+
   const User = require('../../../models/User');
   const Transaction = require('../../../models/Transaction');
   const Budget = require('../../../models/Budget');
@@ -110,29 +116,77 @@ const deleteAccount = asyncHandler(async (req, res) => {
   const UserPreference = require('../../../models/UserPreference');
   const MerchantCategoryMapping = require('../../../models/MerchantCategoryMapping');
 
-  // Cascade delete all user data across all collections
+  // Match both ObjectId and String forms to guarantee complete cascade removal
+  const userObjectId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : null;
+  const userFilter = userObjectId ? { $in: [userId, userObjectId] } : userId;
+
+  logger.info(`[DELETE ACCOUNT] Initiating permanent MongoDB cascade wipe for user ${userId}`);
+
+  // 1. Wipe uploaded profile pictures from disk
+  try {
+    const userDoc = await User.findById(userId);
+    if (userDoc?.profileImage && userDoc.profileImage.startsWith('/uploads/')) {
+      const filePath = path.join(__dirname, '../../../../public', userDoc.profileImage);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+  } catch (fileErr) {
+    logger.warn('Error wiping user avatar file:', { error: fileErr.message });
+  }
+
+  // 2. Cascade delete all documents across all user-owned MongoDB collections
   const deletions = [
-    Transaction.deleteMany({ userId }),
-    Budget.deleteMany({ userId }),
-    Goal.deleteMany({ userId }),
-    Alert.deleteMany({ userId }),
-    ChatMessage.deleteMany({ userId }),
-    UserPreference.deleteMany({ userId }),
-    MerchantCategoryMapping.deleteMany({ userId }),
+    Transaction.deleteMany({ userId: userFilter }),
+    Budget.deleteMany({ userId: userFilter }),
+    Goal.deleteMany({ userId: userFilter }),
+    Alert.deleteMany({ userId: userFilter }),
+    ChatMessage.deleteMany({ userId: userFilter }),
+    UserPreference.deleteMany({ userId: userFilter }),
+    MerchantCategoryMapping.deleteMany({ userId: userFilter }),
   ];
 
+  // 3. Shared Spaces cleanup (delete sole-member spaces, remove member from others)
   try {
     const Space = require('../../spaces/models/Space');
     if (Space) {
-      deletions.push(Space.deleteMany({ createdBy: userId }));
-      deletions.push(Space.updateMany({ 'members.userId': userId }, { $pull: { members: { userId } } }));
+      const spaces = await Space.find({ 'members.userId': userFilter });
+      for (const space of spaces) {
+        if (!space.members || space.members.length <= 1) {
+          deletions.push(Space.findByIdAndDelete(space._id));
+        } else {
+          deletions.push(
+            Space.findByIdAndUpdate(space._id, {
+              $pull: { members: { userId: userFilter } },
+            })
+          );
+        }
+      }
     }
+  } catch (spaceErr) {
+    logger.warn('Error wiping space memberships:', { error: spaceErr.message });
+  }
+
+  // Execute all deletions in parallel
+  await Promise.allSettled(deletions);
+
+  // 4. Delete the User record from MongoDB
+  await User.findByIdAndDelete(userId);
+  if (userObjectId) {
+    await User.deleteMany({ _id: userFilter });
+  }
+
+  // 5. Invalidate all Redis/in-memory caches for this user
+  try {
+    await cache.del(`user:${userId}`);
+    await cache.del(`token:${userId}`);
+    await cache.del(`analytics:${userId}`);
+    await cache.delPattern?.(`*${userId}*`);
   } catch (_) {}
 
-  await Promise.all(deletions);
-  await User.findByIdAndDelete(userId);
+  logger.info(`[DELETE ACCOUNT] Successfully deleted user ${userId} and all associated MongoDB records.`);
 
-  return ok(res, {}, 'Account and all associated data permanently deleted');
+  return ok(res, {}, 'Account and all associated MongoDB data permanently deleted');
 });
 
 module.exports = {

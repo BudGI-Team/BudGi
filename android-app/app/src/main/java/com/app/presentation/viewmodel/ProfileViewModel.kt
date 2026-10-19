@@ -36,11 +36,30 @@ class ProfileViewModel @Inject constructor(
     private val tokenManager: com.app.data.local.TokenManager,
     private val themeManager: ThemeManager,
     private val spaceRepository: SpaceRepository,
-    private val biometricSecurityManager: com.app.security.BiometricSecurityManager
+    private val biometricSecurityManager: com.app.security.BiometricSecurityManager,
+    val appUpdateManager: com.app.data.updater.AppUpdateManager
 ) : ViewModel() {
+
+    val updateState = appUpdateManager.updateState
 
     private val _uiState = MutableStateFlow(ProfileUiState())
     val uiState = _uiState.asStateFlow()
+
+    fun checkForUpdates(isUserInitiated: Boolean = true) {
+        viewModelScope.launch {
+            appUpdateManager.checkForUpdates(isUserInitiated)
+        }
+    }
+
+    fun downloadAndInstallUpdate(apkUrl: String) {
+        viewModelScope.launch {
+            appUpdateManager.downloadAndInstall(apkUrl)
+        }
+    }
+
+    fun dismissUpdate() {
+        appUpdateManager.dismiss()
+    }
 
     init {
         _uiState.update { 
@@ -280,7 +299,14 @@ class ProfileViewModel @Inject constructor(
             _uiState.update { it.copy(isSyncing = true, message = null, error = null) }
             authRepository.deleteAccount()
                 .onSuccess {
-                    _uiState.update { it.copy(isSyncing = false, message = "Account permanently deleted") }
+                    _uiState.update {
+                        it.copy(
+                            isSyncing = false,
+                            isLoggedIn = false,
+                            user = null,
+                            message = "Account and data permanently deleted"
+                        )
+                    }
                     onSuccess()
                 }
                 .onFailure { e ->

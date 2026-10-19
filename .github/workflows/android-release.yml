@@ -1,0 +1,97 @@
+name: BudGi Android Release & Distribution
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Release Version Name (e.g. v1.1.0)'
+        required: false
+        default: 'v1.1.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build Signed APK & Publish Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Grant Execute Permission to gradlew
+        run: chmod +x android-app/gradlew
+
+      - name: Build Signed Release APK
+        working-directory: android-app
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Prepare Release APK Artifacts
+        run: |
+          RELEASE_DIR="android-app/app/build/outputs/apk/release"
+          VERSION_TAG="${{ github.ref_name }}"
+          if [ -z "$VERSION_TAG" ]; then
+            VERSION_TAG="${{ github.event.inputs.version_name }}"
+          fi
+          if [ -z "$VERSION_TAG" ]; then
+            VERSION_TAG="v1.1.0"
+          fi
+
+          echo "Target Release Tag: $VERSION_TAG"
+          cp "$RELEASE_DIR/app-release.apk" "$RELEASE_DIR/BudGi.apk"
+          cp "$RELEASE_DIR/app-release.apk" "$RELEASE_DIR/BudGi-$VERSION_TAG.apk"
+          ls -la "$RELEASE_DIR"
+
+      - name: Create GitHub Release & Upload APK
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "BudGi ${{ github.ref_name || github.event.inputs.version_name || 'v1.1.0' }}"
+          tag_name: ${{ github.ref_name || github.event.inputs.version_name || 'v1.1.0' }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          files: |
+            android-app/app/build/outputs/apk/release/BudGi.apk
+            android-app/app/build/outputs/apk/release/BudGi-*.apk
+          body: |
+            ### 🚀 BudGi Android Native Release
+
+            Welcome to the official production release of **BudGi for Android**!
+
+            #### 📲 Download Options
+            - **[Direct Download (BudGi.apk)](https://github.com/BudGI-Team/BudGi/releases/latest/download/BudGi.apk)** (Latest recommended build)
+            - Or download the version-tagged APK from the Assets list below.
+
+            ---
+
+            #### ⚡ Seamless In-App Updates (No Re-installation Required!)
+            BudGi features built-in **cryptographic release parity** and **In-App Auto-Updates**:
+            1. All builds are signed with the shared team keystore.
+            2. Any future update downloads and installs directly over your existing installation.
+            3. All your budgets, accounts, offline cache, and biometric sessions are **100% preserved**.
+
+            ---
+
+            #### 🛠️ Quick Installation Guide
+            1. Tap **Download BudGi.apk**.
+            2. When the download completes, tap the file in your notifications or Downloads folder.
+            3. If Android prompts *"Install unknown apps"*, toggle **Allow from this source** for your browser.
+            4. Tap **Install** (or **Update**).
+            5. Open BudGi and enjoy frictionless real-time budgeting!
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

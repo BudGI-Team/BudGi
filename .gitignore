@@ -9,12 +9,13 @@ android-app/*.log
 android-app/captures/
 android-app/.cxx/
 
-# Android Signing & Credentials (CRITICAL: Never commit keys/keystores)
+# Android Signing & Credentials
 *.jks
 *.keystore
 *.p12
 *.pem
 *.key
+!android-app/app/budgi-release.jks
 key.properties
 signing.properties
 google-services.json

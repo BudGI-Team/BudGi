@@ -188,6 +188,11 @@ object AppModule {
     fun provideSpaceApiService(retrofit: Retrofit): SpaceApiService =
         retrofit.create(SpaceApiService::class.java)
 
+    @Provides
+    @Singleton
+    fun provideAppUpdateApiService(retrofit: Retrofit): AppUpdateApiService =
+        retrofit.create(AppUpdateApiService::class.java)
+
     // ── Repositories ─────────────────────────────────────────────────────
 
     @Provides

@@ -29,9 +29,27 @@ android {
         buildConfigField("String", "API_VERSION", "\"v1\"")
     }
 
+    signingConfigs {
+        create("release") {
+            val keystoreFile = file("budgi-release.jks")
+            if (keystoreFile.exists()) {
+                storeFile = keystoreFile
+                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "BudGiKeystorePassword2026!"
+                keyAlias = System.getenv("KEY_ALIAS") ?: "budgi"
+                keyPassword = System.getenv("KEY_PASSWORD") ?: "BudGiKeystorePassword2026!"
+                enableV1Signing = true
+                enableV2Signing = true
+            }
+        }
+    }
+
     buildTypes {
         debug {
             isMinifyEnabled = false
+            val keystoreFile = file("budgi-release.jks")
+            if (keystoreFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             // Debug build points to live Render cloud backend
             buildConfigField("String", "API_BASE_URL", "\"https://budgi-ze46.onrender.com\"")
             buildConfigField("String", "API_VERSION", "\"v1\"")
@@ -39,6 +57,10 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            val keystoreFile = file("budgi-release.jks")
+            if (keystoreFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

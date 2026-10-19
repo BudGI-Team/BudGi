@@ -105,16 +105,31 @@ const getWidgetData = asyncHandler(async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// App config — version check, feature flags
-// GET /api/mobile/config
+// App config & Update Information — version check, feature flags, download URLs
+// GET /api/v1/mobile/config
 // ─────────────────────────────────────────────────────────────────────────────
+
+const GITHUB_REPO = 'BudGI-Team/BudGi';
+const LATEST_APK_URL = `https://github.com/${GITHUB_REPO}/releases/latest/download/BudGi.apk`;
+const RELEASES_PAGE_URL = `https://github.com/${GITHUB_REPO}/releases`;
+
+const APP_UPDATE_INFO = {
+  latestVersionCode: 2,
+  latestVersionName: '1.1.0',
+  minSupportedVersionCode: 1,
+  forceUpdate: false,
+  maintenance: false,
+  apkUrl: LATEST_APK_URL,
+  releasesUrl: RELEASES_PAGE_URL,
+  releaseNotes: '• Direct & in-app APK auto-updating\n• Live Render cloud sync enabled\n• Real-time financial dashboard & ledger\n• Bug fixes and battery optimizations',
+  publishedAt: '2026-10-19T14:00:00Z',
+};
 
 const getAppConfig = asyncHandler(async (_req, res) => {
   return ok(res, {
     minAppVersion: '1.0.0',
-    latestAppVersion: '1.0.0',
-    forceUpdate: false,
-    maintenance: false,
+    latestAppVersion: APP_UPDATE_INFO.latestVersionName,
+    ...APP_UPDATE_INFO,
     features: {
       smsParsing: true,
       aiCopilot: true,
@@ -122,9 +137,48 @@ const getAppConfig = asyncHandler(async (_req, res) => {
       csvImport: true,
       deepLinks: true,
       pushNotifications: true,
+      inAppUpdate: true,
     },
     apiVersion: 'v1',
   });
 });
 
-module.exports = { resolveDeepLink, getWidgetData, getAppConfig };
+// ─────────────────────────────────────────────────────────────────────────────
+// Check Update endpoint
+// GET /api/v1/mobile/check-update?versionCode=1
+// ─────────────────────────────────────────────────────────────────────────────
+const checkUpdate = asyncHandler(async (req, res) => {
+  const clientVersionCode = parseInt(req.query.versionCode, 10) || 0;
+  const updateAvailable = clientVersionCode < APP_UPDATE_INFO.latestVersionCode;
+  const isForced = clientVersionCode < APP_UPDATE_INFO.minSupportedVersionCode || APP_UPDATE_INFO.forceUpdate;
+
+  return ok(res, {
+    updateAvailable,
+    isForced,
+    currentVersionCode: clientVersionCode,
+    latestVersionCode: APP_UPDATE_INFO.latestVersionCode,
+    latestVersionName: APP_UPDATE_INFO.latestVersionName,
+    apkUrl: APP_UPDATE_INFO.apkUrl,
+    releasesUrl: APP_UPDATE_INFO.releasesUrl,
+    releaseNotes: APP_UPDATE_INFO.releaseNotes,
+    publishedAt: APP_UPDATE_INFO.publishedAt,
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Direct APK Download redirect
+// GET /api/v1/mobile/download
+// ─────────────────────────────────────────────────────────────────────────────
+const downloadApk = asyncHandler(async (_req, res) => {
+  // 302 Redirect to latest release APK asset on GitHub
+  return res.redirect(LATEST_APK_URL);
+});
+
+module.exports = {
+  resolveDeepLink,
+  getWidgetData,
+  getAppConfig,
+  checkUpdate,
+  downloadApk,
+  APP_UPDATE_INFO,
+};

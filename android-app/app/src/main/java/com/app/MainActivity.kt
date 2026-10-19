@@ -17,11 +17,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.animation.core.*
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.clip
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import android.content.pm.PackageManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -77,6 +79,9 @@ class MainActivity : FragmentActivity() {
 
     @Inject
     lateinit var biometricSecurityManager: com.app.security.BiometricSecurityManager
+
+    @Inject
+    lateinit var appUpdateManager: com.app.data.updater.AppUpdateManager
 
     private var isAuthenticated = mutableStateOf(false)
     private var showPrompt = mutableStateOf(false)
@@ -154,6 +159,25 @@ class MainActivity : FragmentActivity() {
                                 ) { triggerBiometric(force = true) }
                         )
                     }
+
+                    // Background In-App Update Checker
+                    val updateState by appUpdateManager.updateState.collectAsState()
+                    val updateScope = rememberCoroutineScope()
+
+                    LaunchedEffect(Unit) {
+                        delay(2500)
+                        appUpdateManager.checkForUpdates(isUserInitiated = false)
+                    }
+
+                    com.app.presentation.ui.AppUpdateDialog(
+                        updateState = updateState,
+                        onUpdateClick = { apkUrl ->
+                            updateScope.launch {
+                                appUpdateManager.downloadAndInstall(apkUrl)
+                            }
+                        },
+                        onDismiss = { appUpdateManager.dismiss() }
+                    )
                 }
             }
         }

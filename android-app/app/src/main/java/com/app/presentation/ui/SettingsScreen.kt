@@ -54,8 +54,15 @@ fun SettingsScreen(
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val updateState by viewModel.updateState.collectAsState()
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
+
+    LaunchedEffect(uiState.isLoaded, uiState.isLoggedIn) {
+        if (uiState.isLoaded && !uiState.isLoggedIn) {
+            onNavigate?.invoke("login") ?: onBack()
+        }
+    }
 
     WalletoBackground {
         Scaffold(
@@ -280,11 +287,30 @@ fun SettingsScreen(
                         SettingsRow(
                             icon = Icons.Outlined.Info,
                             title = "About BudGi",
-                            subtitle = "Version 1.0.0",
+                            subtitle = "Version 1.1.0",
                             onClick = { onNavigate?.invoke("profile_about") }
+                        )
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f)
+                        )
+                        SettingsRow(
+                            icon = Icons.Outlined.SystemUpdate,
+                            title = "Check for Updates",
+                            subtitle = "BudGi v${com.app.BuildConfig.VERSION_NAME} (Build ${com.app.BuildConfig.VERSION_CODE})",
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                viewModel.checkForUpdates(isUserInitiated = true)
+                            }
                         )
                     }
                 }
+
+                AppUpdateDialog(
+                    updateState = updateState,
+                    onUpdateClick = { apkUrl -> viewModel.downloadAndInstallUpdate(apkUrl) },
+                    onDismiss = { viewModel.dismissUpdate() }
+                )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
