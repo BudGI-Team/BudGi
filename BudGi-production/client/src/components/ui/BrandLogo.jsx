@@ -1,5 +1,4 @@
 import logoImage from '../../logo/budgi-logo-new.png';
-import { motion } from 'framer-motion';
 
 export default function BrandLogo({ size = 28, text = 'BudGi', className = '' }) {
   const fontSize = Math.round(size * 0.8);
