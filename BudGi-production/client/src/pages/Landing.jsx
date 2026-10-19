@@ -1275,7 +1275,7 @@ export default function Landing() {
             <div className="footer-bottom-inner">
               <span className="footer-copy">© {new Date().getFullYear()} BudGi. Engineered for India 🇮🇳</span>
               <div className="footer-made">
-                Crafted with <Heart size={12} fill="var(--red)" stroke="none" /> by human developers
+                Crafted with <Heart size={12} fill="var(--red)" stroke="none" /> by Team BudGi
               </div>
               <div className="footer-bottom-right">
                 <span className="footer-version">v3.0.0 Stable</span>
@@ -1437,17 +1437,17 @@ function HeroDashboard() {
   const rawTxns = [
     ...(hasExtraInflow
       ? [
-          {
-            id: 'extra-1',
-            label: 'Zerodha Dividend',
-            cat: 'Investment Account',
-            amount: '+₹1,450',
-            tag: 'IMPS · Settled',
-            color: 'var(--green)',
-            type: 'income',
-            isNew: true,
-          },
-        ]
+        {
+          id: 'extra-1',
+          label: 'Zerodha Dividend',
+          cat: 'Investment Account',
+          amount: '+₹1,450',
+          tag: 'IMPS · Settled',
+          color: 'var(--green)',
+          type: 'income',
+          isNew: true,
+        },
+      ]
       : []),
     {
       id: 'tx-1',
