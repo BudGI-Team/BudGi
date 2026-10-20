@@ -73,7 +73,7 @@ class AppUpdateManager @Inject constructor(
         }
     }
 
-    suspend fun downloadAndInstall(apkUrl: String) = withContext(Dispatchers.IO) {
+    suspend fun downloadAndInstall(apkUrl: String, expectedChecksum: String? = null) = withContext(Dispatchers.IO) {
         try {
             _updateState.value = UpdateState.Downloading(0)
             val downloadDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.cacheDir
@@ -111,6 +111,24 @@ class AppUpdateManager @Inject constructor(
                         }
                     }
                     output.flush()
+                }
+            }
+
+            // Cryptographic Checksum Validation
+            if (!expectedChecksum.isNullOrBlank()) {
+                val digest = java.security.MessageDigest.getInstance("SHA-256")
+                val computed = apkFile.inputStream().use { stream ->
+                    val buf = ByteArray(8192)
+                    var bytesRead: Int
+                    while (stream.read(buf).also { bytesRead = it } != -1) {
+                        digest.update(buf, 0, bytesRead)
+                    }
+                    digest.digest().joinToString("") { "%02x".format(it) }
+                }
+                if (!computed.equals(expectedChecksum.trim(), ignoreCase = true)) {
+                    apkFile.delete()
+                    _updateState.value = UpdateState.Error("Update integrity check failed. Please retry.")
+                    return@withContext
                 }
             }
 

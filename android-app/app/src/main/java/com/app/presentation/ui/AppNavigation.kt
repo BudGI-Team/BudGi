@@ -273,7 +273,8 @@ fun FinanceAppRoot(
     windowSizeClass: WindowSizeClass,
     smsPermissionGranted: Boolean,
     onRequestPermission: () -> Unit,
-    authRepository: AuthRepository
+    authRepository: AuthRepository,
+    onCheckForUpdates: () -> Unit = {}
 ) {
     val navController = rememberNavController()
     val viewModel: DashboardViewModel = hiltViewModel()
@@ -972,6 +973,10 @@ fun FinanceAppRoot(
                             },
                             onThemePreferenceChange = { pref ->
                                 viewModel.setThemePreference(pref)
+                            },
+                            onCheckUpdates = {
+                                showProfileDrawer = false
+                                onCheckForUpdates()
                             }
                         )
                     }

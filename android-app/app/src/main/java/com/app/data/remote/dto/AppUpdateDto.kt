@@ -11,5 +11,6 @@ data class AppUpdateDto(
     @SerializedName("apkUrl") val apkUrl: String = "",
     @SerializedName("releasesUrl") val releasesUrl: String = "",
     @SerializedName("releaseNotes") val releaseNotes: String = "",
+    @SerializedName("apkChecksumSha256") val apkChecksumSha256: String? = null,
     @SerializedName("publishedAt") val publishedAt: String? = null
 )

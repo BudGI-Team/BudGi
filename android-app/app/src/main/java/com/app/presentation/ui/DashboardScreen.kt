@@ -2620,7 +2620,8 @@ fun ProfileSidebarDrawer(
     onDeleteAccount: () -> Unit = {},
     isDarkModePreference: Boolean? = null,
     onToggleDarkMode: (Boolean) -> Unit = {},
-    onThemePreferenceChange: (Boolean?) -> Unit = {}
+    onThemePreferenceChange: (Boolean?) -> Unit = {},
+    onCheckUpdates: () -> Unit = {}
 ) {
     val haptic = LocalHapticFeedback.current
     var showLogoutConfirm by remember { mutableStateOf(false) }
@@ -2924,6 +2925,16 @@ fun ProfileSidebarDrawer(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column {
+                    DrawerNavRow(
+                        icon = Icons.Outlined.SystemUpdate,
+                        title = "Check for Updates",
+                        subtitle = "v${com.app.BuildConfig.VERSION_NAME} • Check latest release",
+                        onClick = { onCheckUpdates() }
+                    )
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f),
+                        modifier = Modifier.padding(start = 62.dp, end = 14.dp)
+                    )
                     DrawerNavRow(
                         icon = Icons.AutoMirrored.Outlined.HelpOutline,
                         title = "Help & Support",

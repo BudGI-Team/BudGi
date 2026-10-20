@@ -3,11 +3,23 @@ package com.app.domain.repository
 import com.app.domain.model.User
 import kotlinx.coroutines.flow.Flow
 
+data class GoogleAuthResult(
+    val isComplete: Boolean = false,
+    val requiresPhoneVerification: Boolean = false,
+    val preAuthToken: String? = null
+)
+
 interface AuthRepository {
     val currentUser: Flow<User?>
     val isLoggedIn: Boolean
-    suspend fun login(email: String, password: String): Result<Unit>
-    suspend fun googleLogin(idToken: String): Result<Unit>
+    suspend fun login(email: String, password: String): Result<GoogleAuthResult>
+    suspend fun googleLogin(idToken: String): Result<GoogleAuthResult>
+    suspend fun sendPhoneOtp(phone: String, preAuthToken: String): Result<Unit>
+    suspend fun verifyPhoneOtp(phone: String, otp: String, preAuthToken: String): Result<Unit>
+    suspend fun phoneLoginRequest(phone: String): Result<Unit>
+    suspend fun phoneLoginVerify(phone: String, otp: String): Result<Unit>
+    suspend fun phoneRegisterRequest(phone: String, name: String, username: String? = null): Result<Unit>
+    suspend fun phoneRegisterVerify(phone: String, otp: String, name: String, username: String? = null): Result<Unit>
     suspend fun signUp(
         name: String,
         email: String,
@@ -16,7 +28,7 @@ interface AuthRepository {
         dateOfBirth: String? = null,
         avatar: String? = null,
         currency: String = "INR"
-    ): Result<Unit>
+    ): Result<GoogleAuthResult>
     suspend fun checkUsername(username: String): Result<Boolean>
     suspend fun logout()
     suspend fun refreshToken(): Result<Unit>

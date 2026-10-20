@@ -11,6 +11,24 @@ interface AuthApiService {
     @POST("api/v1/auth/google")
     suspend fun googleLogin(@Body request: Map<String, String>): Response<ApiResponse<AuthData>>
 
+    @POST("api/v1/auth/phone/send-otp")
+    suspend fun sendPhoneOtp(@Body request: Map<String, String>): Response<ApiResponse<Any>>
+
+    @POST("api/v1/auth/phone/verify-otp")
+    suspend fun verifyPhoneOtp(@Body request: Map<String, String>): Response<ApiResponse<AuthData>>
+
+    @POST("api/v1/auth/phone/login-request")
+    suspend fun phoneLoginRequest(@Body request: Map<String, String>): Response<ApiResponse<Any>>
+
+    @POST("api/v1/auth/phone/login-verify")
+    suspend fun phoneLoginVerify(@Body request: Map<String, String>): Response<ApiResponse<AuthData>>
+
+    @POST("api/v1/auth/phone/register-request")
+    suspend fun phoneRegisterRequest(@Body request: Map<String, String>): Response<ApiResponse<Any>>
+
+    @POST("api/v1/auth/phone/register-verify")
+    suspend fun phoneRegisterVerify(@Body request: Map<String, String>): Response<ApiResponse<AuthData>>
+
     @POST("api/v1/auth/register")
     suspend fun register(@Body request: RegisterRequest): Response<ApiResponse<AuthData>>
 

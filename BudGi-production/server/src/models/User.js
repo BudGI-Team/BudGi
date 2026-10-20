@@ -6,10 +6,21 @@ const mongoose = require('mongoose');
 const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true, maxlength: 100 },
-    email: { type: String, required: true, unique: true, trim: true, lowercase: true },
+    email: { type: String, unique: true, sparse: true, trim: true, lowercase: true },
     username: { type: String, unique: true, sparse: true, trim: true, lowercase: true, maxlength: 30 },
+    googleId: { type: String, unique: true, sparse: true, trim: true, index: true },
+    phone: { type: String, unique: true, sparse: true, trim: true, index: true },
+    isPhoneVerified: { type: Boolean, default: false },
+    authProvider: { type: String, enum: ['local', 'google', 'phone'], default: 'phone' },
     dateOfBirth: { type: Date, default: null },
-    password: { type: String, required: true, minlength: 60, maxlength: 200 },
+    password: {
+      type: String,
+      required: function () {
+        return this.authProvider === 'local';
+      },
+      minlength: 6,
+      maxlength: 200,
+    },
     currency: { type: String, default: 'INR', maxlength: 10 },
     monthlyIncome: { type: Number, default: 0, min: 0 },
     financialGoal: { type: String, default: '', maxlength: 200 },

@@ -14,7 +14,10 @@ import javax.inject.Inject
 data class AuthUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
-    val isSuccess: Boolean = false
+    val isSuccess: Boolean = false,
+    val requiresPhoneVerification: Boolean = false,
+    val preAuthToken: String? = null,
+    val isOtpSent: Boolean = false
 )
 
 @HiltViewModel
@@ -40,8 +43,18 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             authRepository.login(email, password)
-                .onSuccess {
-                    _uiState.update { it.copy(isLoading = false, isSuccess = true) }
+                .onSuccess { result ->
+                    if (result.requiresPhoneVerification) {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                requiresPhoneVerification = true,
+                                preAuthToken = result.preAuthToken
+                            )
+                        }
+                    } else {
+                        _uiState.update { it.copy(isLoading = false, isSuccess = true) }
+                    }
                 }
                 .onFailure { e ->
                     _uiState.update { it.copy(isLoading = false, error = e.message) }
@@ -53,13 +66,141 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             authRepository.googleLogin(idToken)
-                .onSuccess {
-                    _uiState.update { it.copy(isLoading = false, isSuccess = true) }
+                .onSuccess { result ->
+                    if (result.requiresPhoneVerification) {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                requiresPhoneVerification = true,
+                                preAuthToken = result.preAuthToken
+                            )
+                        }
+                    } else {
+                        _uiState.update { it.copy(isLoading = false, isSuccess = true) }
+                    }
                 }
                 .onFailure { e ->
                     _uiState.update { it.copy(isLoading = false, error = e.message) }
                 }
         }
+    }
+
+    fun sendPhoneOtp(phone: String) {
+        val preAuth = _uiState.value.preAuthToken ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            authRepository.sendPhoneOtp(phone, preAuth)
+                .onSuccess {
+                    _uiState.update { it.copy(isLoading = false, isOtpSent = true) }
+                }
+                .onFailure { e ->
+                    _uiState.update { it.copy(isLoading = false, error = e.message) }
+                }
+        }
+    }
+
+    fun verifyPhoneOtp(phone: String, otp: String) {
+        val preAuth = _uiState.value.preAuthToken ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            authRepository.verifyPhoneOtp(phone, otp, preAuth)
+                .onSuccess {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isSuccess = true,
+                            requiresPhoneVerification = false
+                        )
+                    }
+                }
+                .onFailure { e ->
+                    _uiState.update { it.copy(isLoading = false, error = e.message) }
+                }
+        }
+    }
+
+    fun phoneLoginRequest(phone: String) {
+        val clean = phone.filter { it.isDigit() }
+        if (clean.length != 10) {
+            _uiState.update { it.copy(error = "Please enter a valid 10-digit mobile number") }
+            return
+        }
+        val fullPhone = "+91$clean"
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            authRepository.phoneLoginRequest(fullPhone)
+                .onSuccess {
+                    _uiState.update { it.copy(isLoading = false, isOtpSent = true, error = null) }
+                }
+                .onFailure { e ->
+                    _uiState.update { it.copy(isLoading = false, error = e.message) }
+                }
+        }
+    }
+
+    fun phoneLoginVerify(phone: String, otp: String) {
+        if (otp.length != 6) {
+            _uiState.update { it.copy(error = "Please enter the complete 6-digit verification code") }
+            return
+        }
+        val clean = phone.filter { it.isDigit() }
+        val fullPhone = "+91$clean"
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            authRepository.phoneLoginVerify(fullPhone, otp)
+                .onSuccess {
+                    _uiState.update { it.copy(isLoading = false, isSuccess = true, error = null) }
+                }
+                .onFailure { e ->
+                    _uiState.update { it.copy(isLoading = false, error = e.message) }
+                }
+        }
+    }
+
+    fun phoneRegisterRequest(phone: String, name: String, username: String? = null) {
+        if (name.trim().length < 2) {
+            _uiState.update { it.copy(error = "Please enter your full name") }
+            return
+        }
+        val clean = phone.filter { it.isDigit() }
+        if (clean.length != 10) {
+            _uiState.update { it.copy(error = "Please enter a valid 10-digit mobile number") }
+            return
+        }
+        val fullPhone = "+91$clean"
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            authRepository.phoneRegisterRequest(fullPhone, name.trim(), username)
+                .onSuccess {
+                    _uiState.update { it.copy(isLoading = false, isOtpSent = true, error = null) }
+                }
+                .onFailure { e ->
+                    _uiState.update { it.copy(isLoading = false, error = e.message) }
+                }
+        }
+    }
+
+    fun phoneRegisterVerify(phone: String, otp: String, name: String, username: String? = null) {
+        if (otp.length != 6) {
+            _uiState.update { it.copy(error = "Please enter the complete 6-digit verification code") }
+            return
+        }
+        val clean = phone.filter { it.isDigit() }
+        val fullPhone = "+91$clean"
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            authRepository.phoneRegisterVerify(fullPhone, otp, name.trim(), username)
+                .onSuccess {
+                    _uiState.update { it.copy(isLoading = false, isSuccess = true, error = null) }
+                }
+                .onFailure { e ->
+                    _uiState.update { it.copy(isLoading = false, error = e.message) }
+                }
+        }
+    }
+
+    fun resetOtpState() {
+        _uiState.update { it.copy(isOtpSent = false, error = null, isLoading = false) }
     }
 
     fun signUp(name: String, email: String, password: String) {
@@ -82,8 +223,18 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             authRepository.signUp(name, email, password)
-                .onSuccess {
-                    _uiState.update { it.copy(isLoading = false, isSuccess = true) }
+                .onSuccess { result ->
+                    if (result.requiresPhoneVerification) {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                requiresPhoneVerification = true,
+                                preAuthToken = result.preAuthToken
+                            )
+                        }
+                    } else {
+                        _uiState.update { it.copy(isLoading = false, isSuccess = true) }
+                    }
                 }
                 .onFailure { e ->
                     _uiState.update { it.copy(isLoading = false, error = e.message) }
@@ -148,9 +299,19 @@ class AuthViewModel @Inject constructor(
                 dateOfBirth = dateOfBirth,
                 avatar = avatar ?: "zen_saver",
                 currency = currency
-            ).onSuccess {
-                _uiState.update { it.copy(isLoading = false, isSuccess = true) }
-                onComplete?.invoke()
+            ).onSuccess { result ->
+                if (result.requiresPhoneVerification) {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            requiresPhoneVerification = true,
+                            preAuthToken = result.preAuthToken
+                        )
+                    }
+                } else {
+                    _uiState.update { it.copy(isLoading = false, isSuccess = true) }
+                    onComplete?.invoke()
+                }
             }.onFailure { e ->
                 _uiState.update { it.copy(isLoading = false, error = e.message) }
             }

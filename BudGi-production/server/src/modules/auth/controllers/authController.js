@@ -21,6 +21,68 @@ const googleLogin = asyncHandler(async (req, res) => {
   return ok(res, result, 'Google login successful');
 });
 
+const sendPhoneOtp = asyncHandler(async (req, res) => {
+  const preAuthToken = req.headers.authorization?.replace(/^Bearer\s+/i, '') || req.body.preAuthToken;
+  const result = await authService.sendPhoneOtp({
+    preAuthToken,
+    phone: req.body.phone,
+  });
+  return ok(res, result, result.message);
+});
+
+const verifyPhoneOtp = asyncHandler(async (req, res) => {
+  const preAuthToken = req.headers.authorization?.replace(/^Bearer\s+/i, '') || req.body.preAuthToken;
+  const result = await authService.verifyPhoneOtp({
+    preAuthToken,
+    phone: req.body.phone,
+    otp: req.body.otp,
+  });
+  return ok(res, result, 'Phone verified and authenticated successfully');
+});
+
+const phoneLoginRequest = asyncHandler(async (req, res) => {
+  const result = await authService.phoneLoginRequest({ phone: req.body.phone });
+  return ok(res, result, result.message);
+});
+
+const phoneLoginVerify = asyncHandler(async (req, res) => {
+  const result = await authService.phoneLoginVerify({ phone: req.body.phone, otp: req.body.otp });
+  return ok(res, result, 'Phone verified and authenticated successfully');
+});
+
+const phoneRegisterRequest = asyncHandler(async (req, res) => {
+  const result = await authService.phoneRegisterRequest({
+    phone: req.body.phone,
+    name: req.body.name,
+    username: req.body.username,
+  });
+  return ok(res, result, result.message);
+});
+
+const phoneRegisterVerify = asyncHandler(async (req, res) => {
+  const result = await authService.phoneRegisterVerify({
+    phone: req.body.phone,
+    otp: req.body.otp,
+    name: req.body.name,
+    username: req.body.username,
+  });
+  return ok(res, result, 'Phone registered and account created successfully');
+});
+
+const firebasePhoneLogin = asyncHandler(async (req, res) => {
+  const result = await authService.firebasePhoneLogin({ idToken: req.body.idToken });
+  return ok(res, result, 'Firebase phone login successful');
+});
+
+const firebasePhoneRegister = asyncHandler(async (req, res) => {
+  const result = await authService.firebasePhoneRegister({
+    idToken: req.body.idToken,
+    name: req.body.name,
+    username: req.body.username,
+  });
+  return ok(res, result, 'Firebase phone registration successful');
+});
+
 // POST /api/auth/refresh — exchange refresh token for new token pair
 const refresh = asyncHandler(async (req, res) => {
   const result = await authService.refreshAccessToken(req.body.refreshToken);
@@ -193,6 +255,14 @@ module.exports = {
   register,
   login,
   googleLogin,
+  sendPhoneOtp,
+  verifyPhoneOtp,
+  phoneLoginRequest,
+  phoneLoginVerify,
+  phoneRegisterRequest,
+  phoneRegisterVerify,
+  firebasePhoneLogin,
+  firebasePhoneRegister,
   refresh,
   logout,
   getMe,

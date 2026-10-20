@@ -15,8 +15,12 @@ export function useLogin() {
   return useMutation({
     mutationFn: authApi.login,
     onSuccess: (envelope) => {
-      // FIX: read from envelope.data, not envelope directly
-      const { token, user } = envelope?.data ?? {};
+      const data = envelope?.data ?? envelope ?? {};
+      if (data?.requiresPhoneVerification || data?.status === 'PHONE_VERIFICATION_REQUIRED') {
+        // Handled at page level with PhoneVerificationModal
+        return;
+      }
+      const { token, user } = data;
       if (!token || !user) {
         toast.error('Login failed — unexpected server response');
         return;
@@ -36,8 +40,12 @@ export function useRegister() {
   return useMutation({
     mutationFn: authApi.register,
     onSuccess: (envelope) => {
-      // FIX: read from envelope.data
-      const { token, user } = envelope?.data ?? {};
+      const data = envelope?.data ?? envelope ?? {};
+      if (data?.requiresPhoneVerification || data?.status === 'PHONE_VERIFICATION_REQUIRED') {
+        // Handled at page level with PhoneVerificationModal
+        return;
+      }
+      const { token, user } = data;
       if (!token || !user) {
         toast.error('Registration failed — unexpected server response');
         return;

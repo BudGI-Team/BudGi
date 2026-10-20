@@ -47,7 +47,6 @@
     <string name="error_occurred">An error occurred. Please try again.</string>
     <string name="retry">Retry</string>
 
-    <!-- OAuth Client IDs (PLACEHOLDERS) -->
-    <!-- Replace with your actual Firebase Web Client ID or Google Cloud OAuth Client ID -->
-    <string name="google_server_client_id">YOUR_GOOGLE_CLIENT_ID_HERE.apps.googleusercontent.com</string>
+    <!-- OAuth Client IDs -->
+    <string name="google_server_client_id">257509947874-sbr1d7ev97clthmsh5jdc3ajtaqc3q8b.apps.googleusercontent.com</string>
 </resources>

@@ -1,59 +1,247 @@
-import { useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, User, Cpu, Shield, TrendingUp, Zap, Crown } from '../lib/icons';
-import { useRegister } from '../hooks/useAuth';
+import { User, ArrowRight, Cpu, Shield, TrendingUp, AlertCircle } from '../lib/icons';
 import BrandLogo from '../components/ui/BrandLogo';
+import { authApi } from '../lib/api';
+import useStore from '../store/useStore';
 import toast from 'react-hot-toast';
 import './Auth.css';
 
 export default function Register() {
-  const [searchParams] = useSearchParams();
-  const selectedPlan = searchParams.get('plan') || 'free';
-  const [form, setForm] = useState({ name: '', email: '', password: '', username: '' });
-  const [showPass, setShowPass] = useState(false);
+  const navigate = useNavigate();
+  const { setAuth } = useStore();
+  
+  const [step, setStep] = useState('phone'); // 'phone' | 'otp'
+  const [form, setForm] = useState({ name: '', phone: '', username: '' });
+  const [digits, setDigits] = useState(['', '', '', '', '', '']);
+  const [countdown, setCountdown] = useState(60);
+  const [canResend, setCanResend] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const { mutate: register, isPending } = useRegister();
 
-  const handle = (e) => {
+  const googleBtnRef = useRef(null);
+  const digitRefs = useRef([]);
+
+  // Countdown timer for resend OTP
+  useEffect(() => {
+    let timer = null;
+    if (step === 'otp' && countdown > 0) {
+      timer = setInterval(() => {
+        setCountdown((c) => {
+          if (c <= 1) {
+            setCanResend(true);
+            return 0;
+          }
+          return c - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [step, countdown]);
+
+  // Seamless Google Registration — Direct access without phone interruptions
+  const handleGoogleResponse = useCallback(async (response) => {
+    if (!response.credential) return;
     setErrorMessage('');
-    setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+    try {
+      const res = await authApi.googleLogin(response.credential);
+      const data = res?.data || res;
+      if (data?.token && data?.user) {
+        setAuth(data.user, data.token);
+        if (data.refreshToken) {
+          localStorage.setItem('budgi_refresh_token', data.refreshToken);
+        }
+        toast.success(`Welcome to BudGi, ${data.user.name?.split(' ')[0] || 'there'}!`);
+        navigate('/onboarding');
+      }
+    } catch (err) {
+      setErrorMessage(err.userMessage || 'Google Sign-In failed. Please try again.');
+      toast.error(err.userMessage || 'Google Sign-In failed');
+    }
+  }, [navigate, setAuth]);
+
+  useEffect(() => {
+    const clientId =
+      import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+      '257509947874-sbr1d7ev97clthmsh5jdc3ajtaqc3q8b.apps.googleusercontent.com';
+
+    const renderGsi = () => {
+      if (window.google?.accounts?.id && googleBtnRef.current) {
+        try {
+          window.google.accounts.id.initialize({
+            client_id: clientId,
+            callback: handleGoogleResponse,
+          });
+          window.google.accounts.id.renderButton(googleBtnRef.current, {
+            theme: 'filled_black',
+            size: 'large',
+            text: 'signup_with',
+            shape: 'pill',
+            width: 320,
+          });
+        } catch (e) {
+          console.warn('GIS render error:', e);
+        }
+      }
+    };
+
+    if (window.google?.accounts?.id) {
+      renderGsi();
+    } else {
+      const interval = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          renderGsi();
+          clearInterval(interval);
+        }
+      }, 300);
+      return () => clearInterval(interval);
+    }
+  }, [handleGoogleResponse]);
+
+  const handleInputChange = (e) => {
+    setErrorMessage('');
+    const { name, value } = e.target;
+    if (name === 'phone') {
+      setForm((p) => ({ ...p, phone: value.replace(/\D/g, '').slice(0, 10) }));
+    } else {
+      setForm((p) => ({ ...p, [name]: value }));
+    }
   };
 
-  const submit = (e) => {
-    e.preventDefault();
+  const handleSendOtp = async (e) => {
+    e?.preventDefault();
     setErrorMessage('');
-    if (!form.name || !form.email || !form.password) {
-      setErrorMessage('Please fill in all required fields.');
-      toast.error('Please fill in all required fields.');
+
+    if (!form.name || form.name.trim().length < 2) {
+      setErrorMessage('Please enter your full name.');
       return;
     }
-    if (form.password.length < 8) {
-      setErrorMessage('Password must be at least 8 characters long.');
-      toast.error('Password must be at least 8 characters long.');
+    const cleanPhone = form.phone.replace(/\D/g, '');
+    if (cleanPhone.length !== 10) {
+      setErrorMessage('Please enter a valid 10-digit mobile number.');
       return;
     }
-    const payload = {
-      name: form.name.trim(),
-      email: form.email.trim().toLowerCase(),
-      password: form.password,
-    };
-    if (form.username && form.username.trim()) {
-      payload.username = form.username.trim().replace(/^@/, '').toLowerCase();
+
+    const fullPhone = `+91${cleanPhone}`;
+    setIsSending(true);
+
+    try {
+      const res = await authApi.phoneRegisterRequest({
+        phone: fullPhone,
+        name: form.name.trim(),
+        username: form.username ? form.username.trim() : undefined,
+      });
+
+      toast.success(res.message || `Verification code sent to ${fullPhone}`);
+      setStep('otp');
+      setCountdown(60);
+      setCanResend(false);
+      setTimeout(() => {
+        digitRefs.current[0]?.focus();
+      }, 100);
+    } catch (err) {
+      console.error('[Auth] Phone register request error:', err);
+      const msg = err.userMessage || err.message || 'Failed to send verification SMS.';
+      setErrorMessage(msg);
+      toast.error(msg);
+    } finally {
+      setIsSending(false);
     }
-    register(payload, {
-      onError: (err) => {
-        setErrorMessage(err.userMessage || 'Registration failed. Please try again.');
-      },
-    });
+  };
+
+  const handleDigitChange = (index, value) => {
+    const char = value.slice(-1);
+    if (char && !/^\d+$/.test(char)) return;
+
+    const newDigits = [...digits];
+    newDigits[index] = char;
+    setDigits(newDigits);
+    setErrorMessage('');
+
+    if (char && index < 5) {
+      digitRefs.current[index + 1]?.focus();
+    }
+
+    if (newDigits.every((d) => d !== '') && char) {
+      handleVerifyOtp(newDigits.join(''));
+    }
+  };
+
+  const handleKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !digits[index] && index > 0) {
+      digitRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (!pasted) return;
+
+    const newDigits = [...digits];
+    for (let i = 0; i < 6; i++) {
+      newDigits[i] = pasted[i] || '';
+    }
+    setDigits(newDigits);
+    const nextIdx = Math.min(pasted.length, 5);
+    digitRefs.current[nextIdx]?.focus();
+
+    if (pasted.length === 6) {
+      handleVerifyOtp(pasted);
+    }
+  };
+
+  const handleVerifyOtp = async (codeToSubmit) => {
+    const otp = codeToSubmit || digits.join('');
+    if (otp.length !== 6) {
+      setErrorMessage('Please enter the full 6-digit verification code.');
+      return;
+    }
+
+    setIsVerifying(true);
+    setErrorMessage('');
+
+    try {
+      const cleanPhone = form.phone.replace(/\D/g, '');
+      const fullPhone = `+91${cleanPhone}`;
+      const res = await authApi.phoneRegisterVerify({
+        phone: fullPhone,
+        otp,
+        name: form.name.trim(),
+        username: form.username ? form.username.trim() : undefined,
+      });
+
+      const { token, refreshToken, user: authUser } = res.data || res;
+      if (!token || !authUser) {
+        throw new Error('Registration completed but session token missing.');
+      }
+
+      setAuth(authUser, token);
+      if (refreshToken) {
+        localStorage.setItem('budgi_refresh_token', refreshToken);
+      }
+
+      toast.success(`Account created! Welcome to BudGi, ${authUser.name?.split(' ')[0] || 'there'}!`);
+      navigate('/onboarding');
+    } catch (err) {
+      setErrorMessage(err.userMessage || err.message || 'Verification failed. Please check the code and retry.');
+      toast.error(err.userMessage || 'Verification failed');
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   return (
     <div className="auth-page">
+      {/* Background */}
       <div className="auth-bg">
         <div className="auth-bg-grid" />
         <div className="auth-glow-1" />
         <div className="auth-glow-2" />
+        {/* Hidden container for Firebase invisible reCAPTCHA */}
+        <div id="recaptcha-container" style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }} />
       </div>
 
       {/* Left panel — brand */}
@@ -66,12 +254,14 @@ export default function Register() {
           <br />
           <span className="gradient-text">your control.</span>
         </h2>
-        <p className="auth-tagline-sub">Join 2,400+ people who save smarter. Free forever. No credit card needed.</p>
+        <p className="auth-tagline-sub">
+          Instant, unhackable verification. Sign up seamlessly with your mobile number or Google account.
+        </p>
         <div className="auth-left-features">
           {[
             { icon: Cpu, text: 'BudGi Advisory — real-time treasury intelligence and portfolio health' },
             { icon: TrendingUp, text: 'Predictive Cashflow — 30-day algorithmic expense & runway forecasting' },
-            { icon: Shield, text: 'Bank-Grade Encryption — AES-256 vault architecture, zero data sharing' },
+            { icon: Shield, text: 'Bank-Grade Vault — Zero fake credentials, OTP cryptographic anchoring' },
           ].map(({ icon: Icon, text }) => (
             <div key={text} className="auth-left-feature">
               <div className="auth-feat-icon">
@@ -96,117 +286,188 @@ export default function Register() {
           </Link>
 
           <div className="auth-header">
-            <h1 className="auth-title">Create your account</h1>
+            <h1 className="auth-title">
+              {step === 'phone' ? 'Create your account' : 'Enter verification code'}
+            </h1>
             <p className="auth-sub">
-              {selectedPlan === 'pro'
-                ? 'Start your 7-day free Pro trial.'
-                : selectedPlan === 'elite'
-                  ? 'Start with BudGi Elite.'
-                  : 'Free forever. Start in 2 minutes.'}
+              {step === 'phone'
+                ? 'Sign up with your mobile number or Google account.'
+                : `Enter the 6-digit code sent to +91 ${form.phone}`}
             </p>
-            {selectedPlan !== 'free' && (
-              <div className="auth-plan-chip">
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                  {selectedPlan === 'pro' ? <><Zap size={13} /> Pro</> : <><Crown size={13} /> Elite</>}
-                </span>
-              </div>
-            )}
           </div>
 
           {errorMessage && (
-            <div className="auth-alert-error" role="alert">
+            <div className="auth-alert-error" role="alert" style={{ marginBottom: '16px' }}>
+              <AlertCircle size={15} style={{ flexShrink: 0, marginRight: 6 }} />
               <span>{errorMessage}</span>
             </div>
           )}
 
-          <form className="auth-form" onSubmit={submit}>
-            <div className="auth-field">
-              <label className="auth-label">Full Name</label>
-              <div className="auth-input-wrap">
-                <User size={15} className="auth-input-icon" />
-                <input
-                  className="auth-input"
-                  type="text"
-                  name="name"
-                  value={form.name}
-                  onChange={handle}
-                  placeholder="Rahul Sharma"
-                  required
-                  autoComplete="name"
-                />
+          {step === 'phone' ? (
+            <>
+              {/* Google Sign In Container */}
+              <div
+                className="auth-google-wrapper"
+                style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px', minHeight: '44px' }}
+              >
+                <div ref={googleBtnRef} />
               </div>
-            </div>
 
-            <div className="auth-field">
-              <label className="auth-label">
-                Username <span style={{ opacity: 0.6, fontSize: '11px', fontWeight: 400 }}>(optional)</span>
-              </label>
-              <div className="auth-input-wrap">
-                <span style={{ position: 'absolute', left: 14, color: 'var(--text-muted)', fontSize: 14 }}>@</span>
-                <input
-                  className="auth-input"
-                  style={{ paddingLeft: 34 }}
-                  type="text"
-                  name="username"
-                  value={form.username}
-                  onChange={handle}
-                  placeholder="rahul_sharma"
-                  autoComplete="username"
-                />
+              <div className="auth-divider">
+                <div className="auth-divider-line" />
+                <span>or register with mobile number</span>
+                <div className="auth-divider-line" />
               </div>
-            </div>
 
-            <div className="auth-field">
-              <label className="auth-label">Email</label>
-              <div className="auth-input-wrap">
-                <Mail size={15} className="auth-input-icon" />
-                <input
-                  className="auth-input"
-                  type="email"
-                  name="email"
-                  value={form.email}
-                  onChange={handle}
-                  placeholder="you@example.com"
-                  required
-                  autoComplete="email"
-                />
+              <form className="auth-form" onSubmit={handleSendOtp}>
+                <div className="auth-field">
+                  <label className="auth-label">Full Name</label>
+                  <div className="auth-input-wrap">
+                    <User size={15} className="auth-input-icon" />
+                    <input
+                      className="auth-input"
+                      type="text"
+                      name="name"
+                      value={form.name}
+                      onChange={handleInputChange}
+                      placeholder="Rahul Sharma"
+                      required
+                      autoComplete="name"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+
+                <div className="auth-field">
+                  <label className="auth-label">Mobile Number</label>
+                  <div className="auth-phone-row">
+                    <span className="auth-phone-prefix">+91</span>
+                    <input
+                      className="auth-phone-input"
+                      type="tel"
+                      name="phone"
+                      placeholder="98765 43210"
+                      value={form.phone}
+                      onChange={handleInputChange}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="auth-field">
+                  <label className="auth-label">
+                    Username <span style={{ opacity: 0.6, fontSize: '11px', fontWeight: 400 }}>(optional)</span>
+                  </label>
+                  <div className="auth-input-wrap">
+                    <span style={{ position: 'absolute', left: 14, color: 'var(--text-muted)', fontSize: 14 }}>@</span>
+                    <input
+                      className="auth-input"
+                      style={{ paddingLeft: 34 }}
+                      type="text"
+                      name="username"
+                      value={form.username}
+                      onChange={handleInputChange}
+                      placeholder="rahul_sharma"
+                      autoComplete="username"
+                    />
+                  </div>
+                </div>
+
+                <motion.button
+                  type="submit"
+                  className={`auth-submit ${isSending ? 'is-loading' : ''}`}
+                  disabled={isSending || form.phone.length < 10 || !form.name.trim()}
+                  whileTap={!isSending && form.name.trim() && form.phone.length >= 10 ? { scale: 0.985 } : {}}
+                >
+                  {isSending ? (
+                    <div className="auth-btn-loader-wrap">
+                      <span className="auth-spinner-ring" />
+                      <span className="auth-btn-loader-text">Sending verification code...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <span>Continue with Phone</span>
+                      <ArrowRight size={16} />
+                    </>
+                  )}
+                </motion.button>
+              </form>
+            </>
+          ) : (
+            <div>
+              {/* 6-Digit input boxes */}
+              <div className="auth-digits-container" onPaste={handlePaste}>
+                {digits.map((digit, index) => (
+                  <input
+                    key={index}
+                    ref={(el) => (digitRefs.current[index] = el)}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={digit}
+                    onChange={(e) => handleDigitChange(index, e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(index, e)}
+                    className={`auth-digit-box ${digit ? 'filled' : ''}`}
+                  />
+                ))}
               </div>
-            </div>
 
-            <div className="auth-field">
-              <label className="auth-label">Password</label>
-              <div className="auth-input-wrap">
-                <Lock size={15} className="auth-input-icon" />
-                <input
-                  className="auth-input"
-                  type={showPass ? 'text' : 'password'}
-                  name="password"
-                  value={form.password}
-                  onChange={handle}
-                  placeholder="Min. 8 characters"
-                  required
-                  minLength={8}
-                  autoComplete="new-password"
-                />
-                <button type="button" className="auth-eye" onClick={() => setShowPass((p) => !p)} tabIndex={-1}>
-                  {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
+              <motion.button
+                type="button"
+                className={`auth-submit ${isVerifying ? 'is-loading' : ''}`}
+                onClick={() => handleVerifyOtp()}
+                disabled={isVerifying || digits.some((d) => !d)}
+                whileTap={!isVerifying && digits.every((d) => d) ? { scale: 0.985 } : {}}
+              >
+                {isVerifying ? (
+                  <div className="auth-btn-loader-wrap">
+                    <span className="auth-spinner-ring" />
+                    <span className="auth-btn-loader-text">Creating your account...</span>
+                  </div>
+                ) : (
+                  <>
+                    <span>Verify & Create Account</span>
+                    <ArrowRight size={16} />
+                  </>
+                )}
+              </motion.button>
+
+              <div className="auth-otp-meta-row">
+                {canResend ? (
+                  <button
+                    type="button"
+                    className="auth-resend-btn"
+                    onClick={handleSendOtp}
+                    disabled={isSending}
+                  >
+                    {isSending ? (
+                      <>
+                        <span className="auth-resend-spinner" />
+                        <span>Resending...</span>
+                      </>
+                    ) : (
+                      'Resend Code'
+                    )}
+                  </button>
+                ) : (
+                  <span className="auth-resend-timer">Resend in {countdown}s</span>
+                )}
+                <button
+                  type="button"
+                  className="auth-change-link"
+                  onClick={() => {
+                    setStep('phone');
+                    setDigits(['', '', '', '', '', '']);
+                    setErrorMessage('');
+                  }}
+                >
+                  Change mobile number
                 </button>
               </div>
             </div>
+          )}
 
-            <motion.button type="submit" className="auth-submit" disabled={isPending} whileTap={{ scale: 0.98 }}>
-              {isPending ? (
-                <span className="auth-spinner" />
-              ) : (
-                <>
-                  <span>Create free account</span>
-                  <ArrowRight size={15} />
-                </>
-              )}
-            </motion.button>
-          </form>
-
-          <p className="auth-terms">
+          <p className="auth-terms" style={{ marginTop: '18px' }}>
             By signing up, you agree to our{' '}
             <a href="/#terms" target="_blank" rel="noopener noreferrer">
               Terms of Service
@@ -220,12 +481,12 @@ export default function Register() {
 
           <div className="auth-divider">
             <div className="auth-divider-line" />
-            <span>already have an account?</span>
+            <span>already registered?</span>
             <div className="auth-divider-line" />
           </div>
 
           <p className="auth-footer-text">
-            <Link to="/login">Sign in instead</Link>
+            Already have an account? <Link to="/login">Sign in instead</Link>
           </p>
         </motion.div>
       </div>

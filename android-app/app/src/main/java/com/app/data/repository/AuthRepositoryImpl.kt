@@ -37,7 +37,7 @@ class AuthRepositoryImpl @Inject constructor(
     override val isLoggedIn: Boolean
         get() = tokenManager.isLoggedIn
 
-    override suspend fun login(email: String, password: String): Result<Unit> = try {
+    override suspend fun login(email: String, password: String): Result<com.app.domain.repository.GoogleAuthResult> = try {
         val response = authApi.login(LoginRequest(email.trim().lowercase(), password))
         if (!response.isSuccessful) {
             val errorMsg = response.errorBody()?.string() ?: "Login failed"
@@ -48,11 +48,23 @@ class AuthRepositoryImpl @Inject constructor(
                 Result.failure(Exception(body.message))
             } else {
                 val authData = body.data
-                tokenManager.saveAuthData(authData.token, authData.refreshToken, authData.user)
-                saveUserLocally(authData.user)
-                // Connect WebSocket after successful login
-                try { webSocketManager.connect() } catch (e: Exception) { Log.w(TAG, "WebSocket connect failed", e) }
-                Result.success(Unit)
+                if (authData.requiresPhoneVerification) {
+                    Result.success(
+                        com.app.domain.repository.GoogleAuthResult(
+                            isComplete = false,
+                            requiresPhoneVerification = true,
+                            preAuthToken = authData.preAuthToken
+                        )
+                    )
+                } else if (authData.token != null && authData.refreshToken != null && authData.user != null) {
+                    tokenManager.saveAuthData(authData.token, authData.refreshToken, authData.user)
+                    saveUserLocally(authData.user)
+                    // Connect WebSocket after successful login
+                    try { webSocketManager.connect() } catch (e: Exception) { Log.w(TAG, "WebSocket connect failed", e) }
+                    Result.success(com.app.domain.repository.GoogleAuthResult(isComplete = true))
+                } else {
+                    Result.failure(Exception("Incomplete authentication credentials"))
+                }
             }
         }
     } catch (e: Exception) {
@@ -60,7 +72,7 @@ class AuthRepositoryImpl @Inject constructor(
         Result.failure(Exception(mapNetworkError(e)))
     }
 
-    override suspend fun googleLogin(idToken: String): Result<Unit> = try {
+    override suspend fun googleLogin(idToken: String): Result<com.app.domain.repository.GoogleAuthResult> = try {
         val response = authApi.googleLogin(mapOf("idToken" to idToken))
         if (!response.isSuccessful) {
             val errorMsg = response.errorBody()?.string() ?: "Google login failed"
@@ -71,14 +83,135 @@ class AuthRepositoryImpl @Inject constructor(
                 Result.failure(Exception(body.message))
             } else {
                 val authData = body.data
-                tokenManager.saveAuthData(authData.token, authData.refreshToken, authData.user)
-                saveUserLocally(authData.user)
-                try { webSocketManager.connect() } catch (e: Exception) { Log.w(TAG, "WebSocket connect failed", e) }
-                Result.success(Unit)
+                if (authData.requiresPhoneVerification) {
+                    Result.success(
+                        com.app.domain.repository.GoogleAuthResult(
+                            isComplete = false,
+                            requiresPhoneVerification = true,
+                            preAuthToken = authData.preAuthToken
+                        )
+                    )
+                } else if (authData.token != null && authData.refreshToken != null && authData.user != null) {
+                    tokenManager.saveAuthData(authData.token, authData.refreshToken, authData.user)
+                    saveUserLocally(authData.user)
+                    try { webSocketManager.connect() } catch (e: Exception) { Log.w(TAG, "WebSocket connect failed", e) }
+                    Result.success(com.app.domain.repository.GoogleAuthResult(isComplete = true))
+                } else {
+                    Result.failure(Exception("Incomplete authentication credentials"))
+                }
             }
         }
     } catch (e: Exception) {
         Log.e(TAG, "Google Login failed", e)
+        Result.failure(Exception(mapNetworkError(e)))
+    }
+
+    override suspend fun sendPhoneOtp(phone: String, preAuthToken: String): Result<Unit> = try {
+        val response = authApi.sendPhoneOtp(mapOf("phone" to phone, "preAuthToken" to preAuthToken))
+        if (!response.isSuccessful) {
+            val errorMsg = response.errorBody()?.string() ?: "Failed to send OTP"
+            Result.failure(Exception(parseErrorMessage(errorMsg)))
+        } else {
+            Result.success(Unit)
+        }
+    } catch (e: Exception) {
+        Log.e(TAG, "Send OTP failed", e)
+        Result.failure(Exception(mapNetworkError(e)))
+    }
+
+    override suspend fun verifyPhoneOtp(phone: String, otp: String, preAuthToken: String): Result<Unit> = try {
+        val response = authApi.verifyPhoneOtp(mapOf("phone" to phone, "otp" to otp, "preAuthToken" to preAuthToken))
+        if (!response.isSuccessful) {
+            val errorMsg = response.errorBody()?.string() ?: "Failed to verify OTP"
+            Result.failure(Exception(parseErrorMessage(errorMsg)))
+        } else {
+            val body = response.body() ?: throw Exception("Empty response from server")
+            val authData = body.data ?: throw Exception("Missing authentication data")
+            if (authData.token != null && authData.refreshToken != null && authData.user != null) {
+                tokenManager.saveAuthData(authData.token, authData.refreshToken, authData.user)
+                saveUserLocally(authData.user)
+                try { webSocketManager.connect() } catch (e: Exception) { Log.w(TAG, "WebSocket connect failed", e) }
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception("Incomplete authentication credentials"))
+            }
+        }
+    } catch (e: Exception) {
+        Log.e(TAG, "Verify OTP failed", e)
+        Result.failure(Exception(mapNetworkError(e)))
+    }
+
+    override suspend fun phoneLoginRequest(phone: String): Result<Unit> = try {
+        val response = authApi.phoneLoginRequest(mapOf("phone" to phone))
+        if (!response.isSuccessful) {
+            val errorMsg = response.errorBody()?.string() ?: "Failed to send login OTP"
+            Result.failure(Exception(parseErrorMessage(errorMsg)))
+        } else {
+            Result.success(Unit)
+        }
+    } catch (e: Exception) {
+        Log.e(TAG, "Phone Login Request failed", e)
+        Result.failure(Exception(mapNetworkError(e)))
+    }
+
+    override suspend fun phoneLoginVerify(phone: String, otp: String): Result<Unit> = try {
+        val response = authApi.phoneLoginVerify(mapOf("phone" to phone, "otp" to otp))
+        if (!response.isSuccessful) {
+            val errorMsg = response.errorBody()?.string() ?: "Failed to verify login OTP"
+            Result.failure(Exception(parseErrorMessage(errorMsg)))
+        } else {
+            val body = response.body() ?: throw Exception("Empty response from server")
+            val authData = body.data ?: throw Exception("Missing authentication data")
+            if (authData.token != null && authData.refreshToken != null && authData.user != null) {
+                tokenManager.saveAuthData(authData.token, authData.refreshToken, authData.user)
+                saveUserLocally(authData.user)
+                try { webSocketManager.connect() } catch (e: Exception) { Log.w(TAG, "WebSocket connect failed", e) }
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception("Incomplete authentication credentials"))
+            }
+        }
+    } catch (e: Exception) {
+        Log.e(TAG, "Phone Login Verify failed", e)
+        Result.failure(Exception(mapNetworkError(e)))
+    }
+
+    override suspend fun phoneRegisterRequest(phone: String, name: String, username: String?): Result<Unit> = try {
+        val map = mutableMapOf("phone" to phone, "name" to name)
+        if (!username.isNullOrBlank()) map["username"] = username
+        val response = authApi.phoneRegisterRequest(map)
+        if (!response.isSuccessful) {
+            val errorMsg = response.errorBody()?.string() ?: "Failed to send registration OTP"
+            Result.failure(Exception(parseErrorMessage(errorMsg)))
+        } else {
+            Result.success(Unit)
+        }
+    } catch (e: Exception) {
+        Log.e(TAG, "Phone Register Request failed", e)
+        Result.failure(Exception(mapNetworkError(e)))
+    }
+
+    override suspend fun phoneRegisterVerify(phone: String, otp: String, name: String, username: String?): Result<Unit> = try {
+        val map = mutableMapOf("phone" to phone, "otp" to otp, "name" to name)
+        if (!username.isNullOrBlank()) map["username"] = username
+        val response = authApi.phoneRegisterVerify(map)
+        if (!response.isSuccessful) {
+            val errorMsg = response.errorBody()?.string() ?: "Failed to verify registration OTP"
+            Result.failure(Exception(parseErrorMessage(errorMsg)))
+        } else {
+            val body = response.body() ?: throw Exception("Empty response from server")
+            val authData = body.data ?: throw Exception("Missing authentication data")
+            if (authData.token != null && authData.refreshToken != null && authData.user != null) {
+                tokenManager.saveAuthData(authData.token, authData.refreshToken, authData.user)
+                saveUserLocally(authData.user)
+                try { webSocketManager.connect() } catch (e: Exception) { Log.w(TAG, "WebSocket connect failed", e) }
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception("Incomplete authentication credentials"))
+            }
+        }
+    } catch (e: Exception) {
+        Log.e(TAG, "Phone Register Verify failed", e)
         Result.failure(Exception(mapNetworkError(e)))
     }
 
@@ -90,7 +223,7 @@ class AuthRepositoryImpl @Inject constructor(
         dateOfBirth: String?,
         avatar: String?,
         currency: String
-    ): Result<Unit> = try {
+    ): Result<com.app.domain.repository.GoogleAuthResult> = try {
         val response = authApi.register(RegisterRequest(
             name = name.trim(),
             email = email.trim().lowercase(),
@@ -110,11 +243,23 @@ class AuthRepositoryImpl @Inject constructor(
                 Result.failure(Exception(body.message))
             } else {
                 val authData = body.data
-                tokenManager.saveAuthData(authData.token, authData.refreshToken, authData.user)
-                saveUserLocally(authData.user)
-                // Connect WebSocket after successful signup
-                try { webSocketManager.connect() } catch (e: Exception) { Log.w(TAG, "WebSocket connect failed", e) }
-                Result.success(Unit)
+                if (authData.requiresPhoneVerification) {
+                    Result.success(
+                        com.app.domain.repository.GoogleAuthResult(
+                            isComplete = false,
+                            requiresPhoneVerification = true,
+                            preAuthToken = authData.preAuthToken
+                        )
+                    )
+                } else if (authData.token != null && authData.refreshToken != null && authData.user != null) {
+                    tokenManager.saveAuthData(authData.token, authData.refreshToken, authData.user)
+                    saveUserLocally(authData.user)
+                    // Connect WebSocket after successful signup
+                    try { webSocketManager.connect() } catch (e: Exception) { Log.w(TAG, "WebSocket connect failed", e) }
+                    Result.success(com.app.domain.repository.GoogleAuthResult(isComplete = true))
+                } else {
+                    Result.failure(Exception("Incomplete authentication credentials"))
+                }
             }
         }
     } catch (e: Exception) {
@@ -163,8 +308,11 @@ class AuthRepositoryImpl @Inject constructor(
         }
 
         val authData = body.data
-        tokenManager.saveAuthData(authData.token, authData.refreshToken, authData.user)
-        saveUserLocally(authData.user)
+        val token = authData.token ?: throw Exception("Missing access token")
+        val newRefreshToken = authData.refreshToken ?: refreshToken
+        val user = authData.user ?: throw Exception("Missing user profile")
+        tokenManager.saveAuthData(token, newRefreshToken, user)
+        saveUserLocally(user)
         // Reconnect WebSocket with new token
         webSocketManager.disconnect()
         webSocketManager.connect()
@@ -304,7 +452,8 @@ class AuthRepositoryImpl @Inject constructor(
             uid = dto.id,
             name = dto.name,
             fullName = dto.name,
-            email = dto.email,
+            email = dto.email ?: "",
+            phoneNumber = dto.phone ?: "",
             username = dto.username,
             dateOfBirth = dto.dateOfBirth,
             currency = dto.currency,
@@ -380,7 +529,8 @@ class AuthRepositoryImpl @Inject constructor(
     private fun UserDto.toDomain() = User(
         id = id,
         name = name,
-        email = email,
+        email = email ?: "",
+        phoneNumber = phone ?: "",
         username = username,
         dateOfBirth = dateOfBirth,
         currency = currency,

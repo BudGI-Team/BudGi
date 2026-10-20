@@ -72,13 +72,18 @@ class TokenRefreshInterceptor @Inject constructor(
 
                 if (refreshResult?.success == true && refreshResult.data != null) {
                     val data = refreshResult.data
-                    tokenManager.saveAuthData(data.token, data.refreshToken, data.user)
+                    val token = data.token
+                    val user = data.user
+                    val newRefreshToken = data.refreshToken ?: refreshToken
+                    if (token != null && user != null) {
+                        tokenManager.saveAuthData(token, newRefreshToken, user)
 
-                    response.close()
-                    val retryRequest = request.newBuilder()
-                        .header("Authorization", "Bearer ${data.token}")
-                        .build()
-                    return chain.proceed(retryRequest)
+                        response.close()
+                        val retryRequest = request.newBuilder()
+                            .header("Authorization", "Bearer $token")
+                            .build()
+                        return chain.proceed(retryRequest)
+                    }
                 }
             } else {
                 refreshResponse.close()

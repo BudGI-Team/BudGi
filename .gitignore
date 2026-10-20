@@ -39,6 +39,8 @@ dist/
 BudGi-production/client/dist/
 
 # Server scratch & test files
+scratch/
+**/scratch/
 BudGi-production/server/scratch/
 BudGi-production/server/scratch_test.js
 BudGi-production/server/eng.traineddata

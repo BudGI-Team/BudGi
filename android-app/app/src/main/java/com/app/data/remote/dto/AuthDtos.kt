@@ -45,9 +45,11 @@ data class UpdateProfileRequest(
 // ── Responses ────────────────────────────────────────────────────────
 
 data class AuthData(
-    @SerializedName("token") val token: String,
-    @SerializedName("refreshToken") val refreshToken: String,
-    @SerializedName("user") val user: UserDto
+    @SerializedName("token") val token: String? = null,
+    @SerializedName("refreshToken") val refreshToken: String? = null,
+    @SerializedName("user") val user: UserDto? = null,
+    @SerializedName("requiresPhoneVerification") val requiresPhoneVerification: Boolean = false,
+    @SerializedName("preAuthToken") val preAuthToken: String? = null
 )
 
 data class UserStreakDto(
@@ -57,7 +59,8 @@ data class UserStreakDto(
 data class UserDto(
     @SerializedName("_id") val id: String,
     @SerializedName("name") val name: String,
-    @SerializedName("email") val email: String,
+    @SerializedName("email") val email: String? = null,
+    @SerializedName("phone") val phone: String? = null,
     @SerializedName("username") val username: String? = null,
     @SerializedName("dateOfBirth") val dateOfBirth: String? = null,
     @SerializedName("currency") val currency: String = "INR",

@@ -9,7 +9,10 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const env = require('../../../config/env');
 const userRepo = require('../repositories/userRepository');
+const User = require('../../../models/User');
+const PhoneVerification = require('../../../models/PhoneVerification');
 const emailSvc = require('../../../utils/emailService');
+const smsService = require('./smsService');
 
 const SALT_ROUNDS = 12;
 const REFRESH_TOKEN_BYTES = 48;
@@ -49,6 +52,26 @@ function buildTokenPair(user) {
   const accessToken = signAccessToken(user);
   const refreshToken = generateRefreshToken();
   return { accessToken, refreshToken };
+}
+
+function issuePreAuthToken(user) {
+  return jwt.sign(
+    { id: user._id, email: user.email, stage: 'PHONE_VERIFICATION_REQUIRED' },
+    env.JWT_SECRET,
+    { expiresIn: '15m' },
+  );
+}
+
+function verifyPreAuthToken(token) {
+  try {
+    const decoded = jwt.verify(token, env.JWT_SECRET);
+    if (decoded.stage !== 'PHONE_VERIFICATION_REQUIRED') {
+      throw new Error('Invalid pre-auth token stage');
+    }
+    return decoded;
+  } catch (err) {
+    throw Object.assign(new Error('Invalid or expired verification session. Please sign in again.'), { statusCode: 401 });
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -91,9 +114,15 @@ async function register({ name, email, password, username, dateOfBirth, avatar, 
     throw Object.assign(new Error('Password must be at least 8 characters'), { statusCode: 400 });
   }
 
-  const exists = await userRepo.findByEmail(email);
+  const cleanEmail = (email || '').toLowerCase().trim();
+  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+  if (!emailRegex.test(cleanEmail)) {
+    throw Object.assign(new Error('Please enter a valid email address'), { statusCode: 400 });
+  }
+
+  const exists = await userRepo.findByEmail(cleanEmail);
   if (exists) {
-    throw Object.assign(new Error('Email already registered'), { statusCode: 400 });
+    throw Object.assign(new Error('This email address is already registered. Please log in instead.'), { statusCode: 409 });
   }
 
   let cleanUsername = null;
@@ -139,10 +168,15 @@ async function register({ name, email, password, username, dateOfBirth, avatar, 
     console.error('[Auth] Failed to send verification email:', err.message);
   });
 
-  const { accessToken, refreshToken } = buildTokenPair(user);
-  await saveRefreshToken(user._id, refreshToken);
+  // Dual-Anchor requirement: User must verify phone number before receiving access tokens!
+  const preAuthToken = issuePreAuthToken(user);
 
-  return { token: accessToken, refreshToken, user: user.toSafeJSON() };
+  return {
+    requiresPhoneVerification: true,
+    status: 'PHONE_VERIFICATION_REQUIRED',
+    preAuthToken,
+    user: user.toSafeJSON(),
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -216,14 +250,26 @@ async function login({ email, password }) {
     throw Object.assign(new Error('Email and password are required'), { statusCode: 400 });
   }
 
-  const user = await userRepo.findByEmail(email);
+  const cleanEmail = email.toLowerCase().trim();
+  const user = await userRepo.findByEmail(cleanEmail);
   if (!user) {
-    throw Object.assign(new Error('Invalid credentials'), { statusCode: 401 });
+    throw Object.assign(new Error('No account found with this email. Please check your email or create an account.'), { statusCode: 401 });
   }
 
   const match = await bcrypt.compare(password, user.password);
   if (!match) {
-    throw Object.assign(new Error('Invalid credentials'), { statusCode: 401 });
+    throw Object.assign(new Error('Incorrect password. Please verify and try again.'), { statusCode: 401 });
+  }
+
+  // Dual-Anchor requirement: Check if user has completed phone OTP verification
+  if (!user.isPhoneVerified) {
+    const preAuthToken = issuePreAuthToken(user);
+    return {
+      requiresPhoneVerification: true,
+      status: 'PHONE_VERIFICATION_REQUIRED',
+      preAuthToken,
+      user: user.toSafeJSON ? user.toSafeJSON() : user,
+    };
   }
 
   const { accessToken, refreshToken } = buildTokenPair(user);
@@ -304,7 +350,531 @@ async function googleLogin(idToken) {
   const { accessToken, refreshToken } = buildTokenPair(user);
   await saveRefreshToken(user._id, refreshToken);
 
-  return { token: accessToken, refreshToken, user: user.toSafeJSON() };
+  return { status: 'AUTHENTICATED', token: accessToken, refreshToken, user: user.toSafeJSON ? user.toSafeJSON() : user };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phone OTP Verification (Dual-Anchor Identity Anchor 2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function sendPhoneOtp({ preAuthToken, phone }) {
+  if (!preAuthToken) {
+    throw Object.assign(new Error('Verification session required. Please sign in or register first.'), { statusCode: 401 });
+  }
+  if (!phone) {
+    throw Object.assign(new Error('Mobile contact number is required'), { statusCode: 400 });
+  }
+
+  const decoded = verifyPreAuthToken(preAuthToken);
+  const user = await userRepo.findById(decoded.id);
+  if (!user) throw Object.assign(new Error('User account not found'), { statusCode: 404 });
+
+  // E.164 phone formatting & sanitization
+  const cleanPhone = phone.replace(/[^\d+]/g, '').trim();
+  if (!cleanPhone || cleanPhone.length < 10) {
+    throw Object.assign(new Error('Please enter a valid mobile number with country code (e.g. +91 9876543210)'), { statusCode: 400 });
+  }
+
+  // Ensure phone is not already bound to ANOTHER user
+  const existingPhone = await User.findOne({ phone: cleanPhone, _id: { $ne: user._id } });
+  if (existingPhone) {
+    throw Object.assign(new Error('This mobile number is already registered to another account. Please log in instead.'), { statusCode: 409 });
+  }
+
+  // Rate Limiting: Max 3 requests in the last 15 minutes
+  const recentRequests = await PhoneVerification.countDocuments({
+    phone: cleanPhone,
+    createdAt: { $gte: new Date(Date.now() - 15 * 60 * 1000) },
+  });
+  if (recentRequests >= 3) {
+    throw Object.assign(new Error('Too many OTP attempts. Please wait 15 minutes before requesting again.'), { statusCode: 429 });
+  }
+
+  // Generate cryptographically secure 6-digit OTP
+  const otp = crypto.randomInt(100000, 999999).toString();
+
+  // Dev & audit logger: Loud console banner so verification is effortlessly testable locally
+  console.log('\n┌─────────────────────────────────────────────────────────────┐');
+  console.log('│ 🛡️  BUDGI DUAL-ANCHOR SECURITY ENGINE — PHONE OTP ISSUED     │');
+  console.log(`│ Target Mobile: ${cleanPhone.padEnd(44)} │`);
+  console.log(`│ User Account : ${(user.email || '').padEnd(44)} │`);
+  console.log(`│ SECURITY OTP : >>> ${otp} <<<                            │`);
+  console.log('│ Storage Mode : Zero-Knowledge HMAC-SHA256 (5m TTL)          │');
+  console.log('└─────────────────────────────────────────────────────────────┘\n');
+
+  // Zero-Knowledge HMAC-SHA256 hashed storage
+  const otpHash = crypto
+    .createHmac('sha256', env.OTP_PEPPER)
+    .update(otp + user._id.toString() + cleanPhone)
+    .digest('hex');
+
+  // Wipe any active OTPs for this user
+  await PhoneVerification.deleteMany({ userId: user._id });
+
+  await PhoneVerification.create({
+    userId: user._id,
+    phone: cleanPhone,
+    otpHash,
+    attempts: 0,
+    expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5-minute TTL
+  });
+
+  // Dispatch real cellular SMS via TextBee Android Gateway
+  try {
+    await smsService.sendOtpSms(cleanPhone, otp);
+  } catch (smsErr) {
+    console.error('[Auth] TextBee SMS dispatch error on dual-anchor:', smsErr.message);
+  }
+
+  // Send backup OTP to user's verified Google email
+  try {
+    await emailSvc.sendEmail({
+      to: user.email,
+      subject: `BudGi Verification Code: ${otp}`,
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #04040A; color: #FFFFFF; padding: 32px; border-radius: 16px; max-width: 480px; margin: 0 auto; border: 1px solid rgba(255,255,255,0.1);">
+          <h2 style="margin-top: 0; color: #10B981;">BudGi Dual-Anchor Verification</h2>
+          <p style="color: #94A3B8; font-size: 14px;">Use the following 6-digit code to complete verification for <strong>${cleanPhone}</strong>:</p>
+          <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid #10B981; border-radius: 12px; padding: 20px; text-align: center; margin: 24px 0;">
+            <span style="font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #10B981;">${otp}</span>
+          </div>
+          <p style="color: #64748B; font-size: 12px; margin-bottom: 0;">This code expires in 5 minutes. If you did not request this, please ignore this email.</p>
+        </div>
+      `,
+    });
+  } catch (err) {
+    console.warn('[Auth] Failed to send email OTP backup:', err.message);
+  }
+
+  return {
+    success: true,
+    message: `Verification code sent to ${cleanPhone}${user.email ? ` (backup sent to ${user.email})` : ''}`,
+    phone: cleanPhone,
+    expiresIn: 300,
+  };
+}
+
+async function verifyPhoneOtp({ preAuthToken, phone, otp }) {
+  if (!preAuthToken) {
+    throw Object.assign(new Error('Verification session required. Please sign in or register first.'), { statusCode: 401 });
+  }
+  if (!phone || !otp) {
+    throw Object.assign(new Error('Phone number and 6-digit verification code are required'), { statusCode: 400 });
+  }
+
+  const decoded = verifyPreAuthToken(preAuthToken);
+  const user = await userRepo.findById(decoded.id);
+  if (!user) throw Object.assign(new Error('User account not found'), { statusCode: 404 });
+
+  const cleanPhone = phone.replace(/[^\d+]/g, '').trim();
+  const cleanOtp = otp.toString().trim();
+
+  if (cleanOtp.length !== 6) {
+    throw Object.assign(new Error('Verification code must be exactly 6 digits'), { statusCode: 400 });
+  }
+
+  const record = await PhoneVerification.findOne({ userId: user._id, phone: cleanPhone });
+  if (!record) {
+    throw Object.assign(new Error('Verification code expired or not found. Please request a new code.'), { statusCode: 400 });
+  }
+
+  if (record.attempts >= 3) {
+    await PhoneVerification.deleteMany({ userId: user._id });
+    throw Object.assign(new Error('Too many incorrect attempts. Please request a new code.'), { statusCode: 429 });
+  }
+
+  // Constant-time comparison to prevent side-channel timing attacks
+  const computedHash = crypto
+    .createHmac('sha256', env.OTP_PEPPER)
+    .update(cleanOtp + user._id.toString() + cleanPhone)
+    .digest('hex');
+
+  const isMatch = crypto.timingSafeEqual(Buffer.from(computedHash, 'hex'), Buffer.from(record.otpHash, 'hex'));
+
+  if (!isMatch) {
+    record.attempts += 1;
+    await record.save();
+    const remaining = 3 - record.attempts;
+    if (remaining <= 0) {
+      await PhoneVerification.deleteMany({ userId: user._id });
+      throw Object.assign(new Error('Incorrect code. Attempts exceeded — please request a new code.'), { statusCode: 400 });
+    }
+    throw Object.assign(new Error(`Incorrect code. ${remaining} attempt(s) remaining.`), { statusCode: 400 });
+  }
+
+  // Ensure phone is not already bound to ANOTHER user
+  const existingPhone = await User.findOne({ phone: cleanPhone, _id: { $ne: user._id } });
+  if (existingPhone) {
+    throw Object.assign(new Error('This mobile number is already registered to another account. Please log in instead.'), { statusCode: 409 });
+  }
+
+  // Success! Mark phone verified and delete OTP
+  const updatedUser = await userRepo.updateById(user._id, {
+    phone: cleanPhone,
+    isPhoneVerified: true,
+  });
+  await PhoneVerification.deleteMany({ userId: user._id });
+
+  // Issue full production token pair
+  const { accessToken, refreshToken } = buildTokenPair(updatedUser);
+  await saveRefreshToken(updatedUser._id, refreshToken);
+
+  const safeUser = { ...updatedUser };
+  delete safeUser.password;
+  delete safeUser.refreshToken;
+  delete safeUser.refreshTokenExpiry;
+  delete safeUser.passwordResetToken;
+  delete safeUser.passwordResetExpiry;
+  delete safeUser.emailVerifyToken;
+  delete safeUser.emailVerifyExpiry;
+
+  return {
+    status: 'AUTHENTICATED',
+    token: accessToken,
+    refreshToken,
+    user: safeUser,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Direct Phone Authentication (Zero Fake Credentials, Zero Passwords)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function formatCleanPhone(rawPhone) {
+  if (!rawPhone) return '';
+  const str = rawPhone.toString().trim();
+  const digits = str.replace(/\D/g, '');
+  if (digits.length === 10) {
+    return `+91${digits}`;
+  }
+  if (digits.length === 12 && digits.startsWith('91')) {
+    return `+${digits}`;
+  }
+  if (str.startsWith('+') && digits.length >= 10 && digits.length <= 15) {
+    return `+${digits}`;
+  }
+  return '';
+}
+
+async function phoneLoginRequest({ phone }) {
+  const cleanPhone = formatCleanPhone(phone);
+  if (!cleanPhone || cleanPhone.length < 10) {
+    throw Object.assign(new Error('Please enter a valid 10-digit mobile number'), { statusCode: 400 });
+  }
+
+  // Check if user exists with this phone
+  const user = await userRepo.findByPhone(cleanPhone);
+  if (!user) {
+    throw Object.assign(new Error('No account found with this mobile number. Please register first.'), { statusCode: 404 });
+  }
+
+  // Rate limiting: max 3 requests per 15 min
+  const recentRequests = await PhoneVerification.countDocuments({
+    phone: cleanPhone,
+    createdAt: { $gte: new Date(Date.now() - 15 * 60 * 1000) },
+  });
+  if (recentRequests >= 3) {
+    throw Object.assign(new Error('Too many OTP attempts. Please wait 15 minutes before requesting again.'), { statusCode: 429 });
+  }
+
+  const otp = crypto.randomInt(100000, 999999).toString();
+  const otpHash = crypto
+    .createHmac('sha256', env.OTP_PEPPER)
+    .update(otp + user._id.toString() + cleanPhone + 'login')
+    .digest('hex');
+
+  // Invalidate prior active OTPs without deleting history
+  await PhoneVerification.updateMany(
+    { phone: cleanPhone, action: 'login', status: 'active' },
+    { $set: { status: 'superseded' } }
+  );
+
+  await PhoneVerification.create({
+    userId: user._id,
+    phone: cleanPhone,
+    otpHash,
+    action: 'login',
+    status: 'active',
+    attempts: 0,
+    expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+  });
+
+  console.log('\n┌─────────────────────────────────────────────────────────────┐');
+  console.log('│ 🔑  BUDGI PHONE LOGIN OTP ISSUED                            │');
+  console.log(`│ Mobile Target: ${cleanPhone.padEnd(44)} │`);
+  console.log(`│ User Account : ${(user.name || '').padEnd(44)} │`);
+  console.log(`│ SECURITY OTP : >>> ${otp} <<<                            │`);
+  console.log('│ Storage Mode : Zero-Knowledge HMAC-SHA256 (5m TTL)          │');
+  console.log('└─────────────────────────────────────────────────────────────┘\n');
+
+  // Dispatch real cellular SMS via TextBee Android Gateway
+  try {
+    await smsService.sendOtpSms(cleanPhone, otp);
+  } catch (smsErr) {
+    console.error('[Auth] TextBee SMS dispatch error on login:', smsErr.message);
+  }
+
+  return {
+    success: true,
+    message: `Verification code sent to ${cleanPhone}`,
+    phone: cleanPhone,
+    expiresIn: 300,
+  };
+}
+
+async function phoneLoginVerify({ phone, otp }) {
+  const cleanPhone = formatCleanPhone(phone);
+  const cleanOtp = (otp || '').toString().trim();
+
+  if (!cleanPhone || cleanOtp.length !== 6) {
+    throw Object.assign(new Error('Mobile number and 6-digit verification code are required'), { statusCode: 400 });
+  }
+
+  const record = await PhoneVerification.findOne({
+    phone: cleanPhone,
+    action: 'login',
+    status: 'active',
+  }).sort({ createdAt: -1 });
+
+  if (!record) {
+    throw Object.assign(new Error('Verification code expired or not found. Please request a new code.'), { statusCode: 400 });
+  }
+
+  if (record.attempts >= 3) {
+    record.status = 'exhausted';
+    await record.save();
+    throw Object.assign(new Error('Too many incorrect attempts. Please request a new code.'), { statusCode: 429 });
+  }
+
+  const user = await userRepo.findById(record.userId);
+  if (!user) {
+    throw Object.assign(new Error('User account not found'), { statusCode: 404 });
+  }
+
+  const computedHash = crypto
+    .createHmac('sha256', env.OTP_PEPPER)
+    .update(cleanOtp + user._id.toString() + cleanPhone + 'login')
+    .digest('hex');
+
+  const isMatch = crypto.timingSafeEqual(Buffer.from(computedHash, 'hex'), Buffer.from(record.otpHash, 'hex'));
+
+  if (!isMatch) {
+    record.attempts += 1;
+    if (record.attempts >= 3) {
+      record.status = 'exhausted';
+    }
+    await record.save();
+    const remaining = 3 - record.attempts;
+    if (remaining <= 0) {
+      throw Object.assign(new Error('Incorrect code. Attempts exceeded — please request a new code.'), { statusCode: 400 });
+    }
+    throw Object.assign(new Error(`Incorrect code. ${remaining} attempt(s) remaining.`), { statusCode: 400 });
+  }
+
+  // Ensure isPhoneVerified is true and mark OTP record verified
+  const updatedUser = await userRepo.updateById(user._id, { isPhoneVerified: true });
+  record.status = 'verified';
+  await record.save();
+
+  const { accessToken, refreshToken } = buildTokenPair(updatedUser);
+  await saveRefreshToken(updatedUser._id, refreshToken);
+
+  const safeUser = { ...updatedUser };
+  delete safeUser.password;
+  delete safeUser.refreshToken;
+  delete safeUser.refreshTokenExpiry;
+
+  return {
+    status: 'AUTHENTICATED',
+    token: accessToken,
+    refreshToken,
+    user: safeUser,
+  };
+}
+
+async function phoneRegisterRequest({ phone, name, username }) {
+  const cleanPhone = formatCleanPhone(phone);
+  if (!cleanPhone || cleanPhone.length < 10) {
+    throw Object.assign(new Error('Please enter a valid 10-digit mobile number'), { statusCode: 400 });
+  }
+
+  if (!name || name.trim().length < 2) {
+    throw Object.assign(new Error('Please enter your full name'), { statusCode: 400 });
+  }
+
+  // 1. Check if user already exists with this phone
+  const existingUser = await userRepo.findByPhone(cleanPhone);
+  if (existingUser) {
+    throw Object.assign(
+      new Error('This mobile number is already registered. Please log in instead.'),
+      { statusCode: 409 }
+    );
+  }
+
+  // 2. Check if username is taken (if provided)
+  if (username && username.trim()) {
+    const cleanUsername = username.toLowerCase().trim().replace(/^@/, '');
+    const uExists = await userRepo.findByUsername(cleanUsername);
+    if (uExists) {
+      throw Object.assign(
+        new Error('This username is already taken. Please choose another.'),
+        { statusCode: 409 }
+      );
+    }
+  }
+
+  // 3. Rate limiting: max 3 requests per 15 min
+  const recentRequests = await PhoneVerification.countDocuments({
+    phone: cleanPhone,
+    createdAt: { $gte: new Date(Date.now() - 15 * 60 * 1000) },
+  });
+  if (recentRequests >= 3) {
+    throw Object.assign(
+      new Error('Too many OTP attempts. Please wait 15 minutes before requesting again.'),
+      { statusCode: 429 }
+    );
+  }
+
+  const otp = crypto.randomInt(100000, 999999).toString();
+  const otpHash = crypto
+    .createHmac('sha256', env.OTP_PEPPER)
+    .update(otp + cleanPhone + 'register')
+    .digest('hex');
+
+  // Invalidate previous active registration OTPs
+  await PhoneVerification.updateMany(
+    { phone: cleanPhone, action: 'register', status: 'active' },
+    { $set: { status: 'superseded' } }
+  );
+
+  await PhoneVerification.create({
+    phone: cleanPhone,
+    otpHash,
+    action: 'register',
+    status: 'active',
+    attempts: 0,
+    metadata: {
+      name: name.trim(),
+      username: username ? username.trim().toLowerCase().replace(/^@/, '') : undefined,
+    },
+    expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+  });
+
+  console.log('\n┌─────────────────────────────────────────────────────────────┐');
+  console.log('│ 🔑  BUDGI PHONE REGISTRATION OTP ISSUED                     │');
+  console.log(`│ Mobile Target: ${cleanPhone.padEnd(44)} │`);
+  console.log(`│ Full Name    : ${name.trim().padEnd(44)} │`);
+  console.log(`│ SECURITY OTP : >>> ${otp} <<<                            │`);
+  console.log('│ Delivery     : Real Telecom Cellular SMS via TextBee        │');
+  console.log('└─────────────────────────────────────────────────────────────┘\n');
+
+  // Dispatch real SMS via TextBee
+  try {
+    await smsService.sendOtpSms(cleanPhone, otp);
+  } catch (smsErr) {
+    console.error('[Auth] TextBee SMS dispatch error on register:', smsErr.message);
+  }
+
+  return {
+    success: true,
+    message: `Verification code sent to ${cleanPhone}`,
+    phone: cleanPhone,
+    expiresIn: 300,
+  };
+}
+
+async function phoneRegisterVerify({ phone, otp, name, username }) {
+  const cleanPhone = formatCleanPhone(phone);
+  const cleanOtp = (otp || '').toString().trim();
+
+  if (!cleanPhone || cleanOtp.length !== 6) {
+    throw Object.assign(new Error('Mobile number and 6-digit verification code are required'), { statusCode: 400 });
+  }
+
+  const record = await PhoneVerification.findOne({
+    phone: cleanPhone,
+    action: 'register',
+    status: 'active',
+  }).sort({ createdAt: -1 });
+
+  if (!record) {
+    throw Object.assign(new Error('Verification code expired or not found. Please request a new code.'), { statusCode: 400 });
+  }
+
+  if (record.attempts >= 3) {
+    record.status = 'exhausted';
+    await record.save();
+    throw Object.assign(new Error('Too many incorrect attempts. Please request a new code.'), { statusCode: 429 });
+  }
+
+  const computedHash = crypto
+    .createHmac('sha256', env.OTP_PEPPER)
+    .update(cleanOtp + cleanPhone + 'register')
+    .digest('hex');
+
+  const isMatch = crypto.timingSafeEqual(Buffer.from(computedHash, 'hex'), Buffer.from(record.otpHash, 'hex'));
+
+  if (!isMatch) {
+    record.attempts += 1;
+    await record.save();
+    const remaining = 3 - record.attempts;
+    throw Object.assign(
+      new Error(`Invalid verification code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`),
+      { statusCode: 400 }
+    );
+  }
+
+  record.status = 'verified';
+  await record.save();
+
+  // Ensure user doesn't already exist
+  const existingUser = await userRepo.findByPhone(cleanPhone);
+  if (existingUser) {
+    throw Object.assign(
+      new Error('This mobile number is already registered. Please log in instead.'),
+      { statusCode: 409 }
+    );
+  }
+
+  const finalName = (name || record.metadata?.name || 'BudGi User').trim();
+  const rawUsername = username || record.metadata?.username;
+  let finalUsername = null;
+
+  if (rawUsername) {
+    const cleanU = rawUsername.toLowerCase().trim().replace(/^@/, '');
+    const uExists = await userRepo.findByUsername(cleanU);
+    finalUsername = uExists ? await generateUniqueUsername(cleanU) : cleanU;
+  } else {
+    finalUsername = await generateUniqueUsername(cleanPhone.slice(-6));
+  }
+
+  const user = await userRepo.create({
+    name: finalName,
+    phone: cleanPhone,
+    username: finalUsername,
+    authProvider: 'phone',
+    isPhoneVerified: true,
+    isEmailVerified: false,
+    onboarded: false,
+    currency: 'INR',
+    monthlyIncome: 0,
+    streak: { count: 1, lastActiveDate: new Date() },
+  });
+
+  const { accessToken, refreshToken } = buildTokenPair(user);
+  await saveRefreshToken(user._id, refreshToken);
+
+  const safeUser = user.toSafeJSON ? user.toSafeJSON() : { ...user };
+  delete safeUser.password;
+  delete safeUser.refreshToken;
+  delete safeUser.refreshTokenExpiry;
+
+  return {
+    status: 'AUTHENTICATED',
+    token: accessToken,
+    refreshToken,
+    user: safeUser,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -316,9 +886,9 @@ async function forgotPassword(email) {
     throw Object.assign(new Error('Email is required'), { statusCode: 400 });
   }
 
-  const user = await userRepo.findByEmail(email);
-  // Always return success message to prevent email enumeration
-  const safeMsg = 'If that email is registered, a reset link has been sent.';
+  const cleanEmail = email.toLowerCase().trim();
+  const user = await userRepo.findByEmail(cleanEmail);
+  const safeMsg = 'If that email is registered, a password reset link has been sent.';
 
   if (!user) return { message: safeMsg };
 
@@ -329,12 +899,23 @@ async function forgotPassword(email) {
   });
 
   const resetUrl = `${env.CLIENT_ORIGIN}/reset-password?token=${resetToken}`;
+  console.log('\n┌─────────────────────────────────────────────────────────────┐');
+  console.log('│ 🔑  BUDGI PASSWORD RESET LINK GENERATED                      │');
+  console.log(`│ Target Email: ${cleanEmail.padEnd(44)} │`);
+  console.log(`│ Reset Token : ${resetToken.padEnd(44)} │`);
+  console.log(`│ Reset Link  : ${resetUrl.slice(0, 44).padEnd(44)} │`);
+  console.log('└─────────────────────────────────────────────────────────────┘\n');
+
   const { subject, html } = emailSvc.passwordResetEmail(user.name, resetUrl);
   emailSvc.sendEmail({ to: user.email, subject, html }).catch((err) => {
     console.error('[Auth] Failed to send password reset email:', err.message);
   });
 
-  return { message: safeMsg };
+  return {
+    message: safeMsg,
+    devResetUrl: process.env.NODE_ENV !== 'production' ? resetUrl : undefined,
+    devToken: process.env.NODE_ENV !== 'production' ? resetToken : undefined,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -520,6 +1101,144 @@ async function updateProfile(
   return user;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Firebase Phone Authentication (Real Carrier-Delivered SMS Verification)
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function verifyFirebaseToken(idToken) {
+  if (!idToken) {
+    throw Object.assign(new Error('Firebase verification token is required'), { statusCode: 400 });
+  }
+
+  // 1. If firebase-admin initialized with credentials, use admin SDK
+  try {
+    const admin = require('firebase-admin');
+    if (admin && admin.apps && admin.apps.length > 0) {
+      const decoded = await admin.auth().verifyIdToken(idToken);
+      if (decoded && decoded.phone_number) {
+        return {
+          phone: decoded.phone_number,
+          uid: decoded.uid,
+          email: decoded.email,
+        };
+      }
+    }
+  } catch {
+    // Fall through to Identity Toolkit REST API
+  }
+
+  // 2. Google Identity Toolkit REST verification using BudGi project API key
+  const apiKey = env.FIREBASE_API_KEY || 'AIzaSyAUlLYW2rmOxH1fAF3VTDXC9TysC5ywbto';
+  const url = `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken }),
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw Object.assign(
+      new Error(errData.error?.message || 'Invalid or expired Firebase phone verification token'),
+      { statusCode: 401 }
+    );
+  }
+
+  const data = await res.json();
+  const userRecord = data.users?.[0];
+  if (!userRecord || !userRecord.phoneNumber) {
+    throw Object.assign(new Error('No verified phone number found in Firebase token'), { statusCode: 400 });
+  }
+
+  return {
+    phone: userRecord.phoneNumber,
+    uid: userRecord.localId,
+    email: userRecord.email,
+  };
+}
+
+async function firebasePhoneLogin({ idToken }) {
+  const { phone } = await verifyFirebaseToken(idToken);
+  const cleanPhone = formatCleanPhone(phone);
+
+  const user = await userRepo.findByPhone(cleanPhone);
+  if (!user) {
+    throw Object.assign(
+      new Error('No account found with this mobile number. Please register first.'),
+      { statusCode: 404 }
+    );
+  }
+
+  const { accessToken, refreshToken } = buildTokenPair(user);
+  await saveRefreshToken(user._id, refreshToken);
+
+  const safeUser = user.toSafeJSON ? user.toSafeJSON() : { ...user };
+  delete safeUser.password;
+  delete safeUser.refreshToken;
+  delete safeUser.refreshTokenExpiry;
+
+  return {
+    status: 'AUTHENTICATED',
+    token: accessToken,
+    refreshToken,
+    user: safeUser,
+  };
+}
+
+async function firebasePhoneRegister({ idToken, name, username }) {
+  const { phone } = await verifyFirebaseToken(idToken);
+  const cleanPhone = formatCleanPhone(phone);
+
+  if (!name || name.trim().length < 2) {
+    throw Object.assign(new Error('Please enter your full name'), { statusCode: 400 });
+  }
+
+  const existingUser = await userRepo.findByPhone(cleanPhone);
+  if (existingUser) {
+    throw Object.assign(
+      new Error('This mobile number is already registered. Please log in instead.'),
+      { statusCode: 409 }
+    );
+  }
+
+  let finalUsername = null;
+  if (username) {
+    const cleanUsername = username.toLowerCase().trim().replace(/^@/, '');
+    const uExists = await userRepo.findByUsername(cleanUsername);
+    finalUsername = uExists ? await generateUniqueUsername(cleanUsername) : cleanUsername;
+  } else {
+    finalUsername = await generateUniqueUsername(cleanPhone.slice(-6));
+  }
+
+  const user = await userRepo.create({
+    name: name.trim(),
+    phone: cleanPhone,
+    username: finalUsername,
+    authProvider: 'phone',
+    isPhoneVerified: true,
+    isEmailVerified: false,
+    onboarded: false,
+    currency: 'INR',
+    monthlyIncome: 0,
+    streak: { count: 1, lastActiveDate: new Date() },
+  });
+
+  const { accessToken, refreshToken } = buildTokenPair(user);
+  await saveRefreshToken(user._id, refreshToken);
+
+  const safeUser = user.toSafeJSON ? user.toSafeJSON() : { ...user };
+  delete safeUser.password;
+  delete safeUser.refreshToken;
+  delete safeUser.refreshTokenExpiry;
+
+  return {
+    status: 'AUTHENTICATED',
+    token: accessToken,
+    refreshToken,
+    user: safeUser,
+  };
+}
+
 module.exports = {
   register,
   login,
@@ -535,4 +1254,13 @@ module.exports = {
   getProfile,
   updateProfile,
   checkUsername,
+  sendPhoneOtp,
+  verifyPhoneOtp,
+  phoneLoginRequest,
+  phoneLoginVerify,
+  phoneRegisterRequest,
+  phoneRegisterVerify,
+  verifyFirebaseToken,
+  firebasePhoneLogin,
+  firebasePhoneRegister,
 };

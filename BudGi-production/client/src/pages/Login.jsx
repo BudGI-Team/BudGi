@@ -1,47 +1,211 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, Cpu, Shield, TrendingUp } from '../lib/icons';
-import { useLogin } from '../hooks/useAuth';
+import { ArrowRight, Cpu, Shield, TrendingUp, AlertCircle } from '../lib/icons';
 import BrandLogo from '../components/ui/BrandLogo';
+import { authApi } from '../lib/api';
+import useStore from '../store/useStore';
 import toast from 'react-hot-toast';
 import './Auth.css';
 
 export default function Login() {
-  const [form, setForm] = useState({ email: '', password: '' });
-  const [showPass, setShowPass] = useState(false);
+  const navigate = useNavigate();
+  const { setAuth } = useStore();
+  
+  const [step, setStep] = useState('phone'); // 'phone' | 'otp'
+  const [phone, setPhone] = useState('');
+  const [digits, setDigits] = useState(['', '', '', '', '', '']);
+  const [countdown, setCountdown] = useState(60);
+  const [canResend, setCanResend] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const { mutate: login, isPending } = useLogin();
 
-  const handle = (e) => {
+  const googleBtnRef = useRef(null);
+  const digitRefs = useRef([]);
+
+  // Countdown timer for resend OTP
+  useEffect(() => {
+    let timer = null;
+    if (step === 'otp' && countdown > 0) {
+      timer = setInterval(() => {
+        setCountdown((c) => {
+          if (c <= 1) {
+            setCanResend(true);
+            return 0;
+          }
+          return c - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [step, countdown]);
+
+  // Seamless Google Sign-In — Direct access without phone interruptions
+  const handleGoogleResponse = useCallback(async (response) => {
+    if (!response.credential) return;
     setErrorMessage('');
-    setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+    try {
+      const res = await authApi.googleLogin(response.credential);
+      const data = res?.data || res;
+      if (data?.token && data?.user) {
+        setAuth(data.user, data.token);
+        if (data.refreshToken) {
+          localStorage.setItem('budgi_refresh_token', data.refreshToken);
+        }
+        toast.success(`Welcome back, ${data.user.name?.split(' ')[0] || 'there'}!`);
+        navigate('/app/dashboard');
+      }
+    } catch (err) {
+      setErrorMessage(err.userMessage || 'Google Sign-In failed. Please try again.');
+      toast.error(err.userMessage || 'Google Sign-In failed');
+    }
+  }, [navigate, setAuth]);
+
+  useEffect(() => {
+    const clientId =
+      import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+      '257509947874-sbr1d7ev97clthmsh5jdc3ajtaqc3q8b.apps.googleusercontent.com';
+
+    const renderGsi = () => {
+      if (window.google?.accounts?.id && googleBtnRef.current) {
+        try {
+          window.google.accounts.id.initialize({
+            client_id: clientId,
+            callback: handleGoogleResponse,
+          });
+          window.google.accounts.id.renderButton(googleBtnRef.current, {
+            theme: 'filled_black',
+            size: 'large',
+            text: 'continue_with',
+            shape: 'pill',
+            width: 320,
+          });
+        } catch (e) {
+          console.warn('GIS render error:', e);
+        }
+      }
+    };
+
+    if (window.google?.accounts?.id) {
+      renderGsi();
+    } else {
+      const interval = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          renderGsi();
+          clearInterval(interval);
+        }
+      }, 300);
+      return () => clearInterval(interval);
+    }
+  }, [handleGoogleResponse]);
+
+  const handleSendOtp = async (e) => {
+    e?.preventDefault();
+    setErrorMessage('');
+    const clean = phone.replace(/\D/g, '');
+    if (clean.length !== 10) {
+      setErrorMessage('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+
+    const fullPhone = `+91${clean}`;
+    setIsSending(true);
+
+    try {
+      const res = await authApi.phoneLoginRequest(fullPhone);
+      toast.success(res.message || `Verification code sent to ${fullPhone}`);
+      setStep('otp');
+      setCountdown(60);
+      setCanResend(false);
+      setTimeout(() => {
+        digitRefs.current[0]?.focus();
+      }, 100);
+    } catch (err) {
+      console.error('[Auth] Phone login request error:', err);
+      const msg = err.userMessage || err.message || 'Failed to send verification SMS.';
+      setErrorMessage(msg);
+      toast.error(msg);
+    } finally {
+      setIsSending(false);
+    }
   };
 
-  const submit = (e) => {
-    e.preventDefault();
+  const handleDigitChange = (index, value) => {
+    const char = value.slice(-1);
+    if (char && !/^\d+$/.test(char)) return;
+
+    const newDigits = [...digits];
+    newDigits[index] = char;
+    setDigits(newDigits);
     setErrorMessage('');
-    if (!form.email || !form.password) {
-      setErrorMessage('Please fill in all required fields.');
-      toast.error('Please fill in all required fields.');
+
+    if (char && index < 5) {
+      digitRefs.current[index + 1]?.focus();
+    }
+
+    if (newDigits.every((d) => d !== '') && char) {
+      handleVerifyOtp(newDigits.join(''));
+    }
+  };
+
+  const handleKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !digits[index] && index > 0) {
+      digitRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (!pasted) return;
+
+    const newDigits = [...digits];
+    for (let i = 0; i < 6; i++) {
+      newDigits[i] = pasted[i] || '';
+    }
+    setDigits(newDigits);
+    const nextIdx = Math.min(pasted.length, 5);
+    digitRefs.current[nextIdx]?.focus();
+
+    if (pasted.length === 6) {
+      handleVerifyOtp(pasted);
+    }
+  };
+
+  const handleVerifyOtp = async (codeToSubmit) => {
+    const otp = codeToSubmit || digits.join('');
+    if (otp.length !== 6) {
+      setErrorMessage('Please enter the full 6-digit verification code.');
       return;
     }
-    if (form.password.length < 8) {
-      setErrorMessage('Password must be at least 8 characters long.');
-      toast.error('Password must be at least 8 characters long.');
-      return;
+
+    setIsVerifying(true);
+    setErrorMessage('');
+
+    try {
+      const clean = phone.replace(/\D/g, '');
+      const fullPhone = `+91${clean}`;
+      const res = await authApi.phoneLoginVerify(fullPhone, otp);
+
+      const { token, refreshToken, user: authUser } = res.data || res;
+      if (!token || !authUser) {
+        throw new Error('Authentication succeeded but session token is missing.');
+      }
+
+      setAuth(authUser, token);
+      if (refreshToken) {
+        localStorage.setItem('budgi_refresh_token', refreshToken);
+      }
+
+      toast.success(`Welcome back, ${authUser.name?.split(' ')[0] || 'there'}!`);
+      navigate('/app/dashboard');
+    } catch (err) {
+      setErrorMessage(err.userMessage || err.message || 'Invalid verification code. Please check and retry.');
+      toast.error(err.userMessage || 'OTP verification failed');
+    } finally {
+      setIsVerifying(false);
     }
-    login(
-      {
-        email: form.email.trim().toLowerCase(),
-        password: form.password,
-      },
-      {
-        onError: (err) => {
-          setErrorMessage(err.userMessage || 'Invalid email or password. Please try again.');
-        },
-      },
-    );
   };
 
   return (
@@ -51,6 +215,8 @@ export default function Login() {
         <div className="auth-bg-grid" />
         <div className="auth-glow-1" />
         <div className="auth-glow-2" />
+        {/* Hidden container for Firebase invisible reCAPTCHA */}
+        <div id="recaptcha-container" style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }} />
       </div>
 
       {/* Left panel — brand */}
@@ -61,16 +227,16 @@ export default function Login() {
         <h2 className="auth-tagline">
           Smart money.
           <br />
-          <span className="gradient-text">Clear mind.</span>
+          <span className="gradient-text">Zero hassle.</span>
         </h2>
         <p className="auth-tagline-sub">
-          Track every rupee, get autonomous financial insights, and never wonder where your money went again.
+          Instant, unhackable verification. Sign in seamlessly with your verified mobile number or Google account.
         </p>
         <div className="auth-left-features">
           {[
             { icon: Cpu, text: 'BudGi Advisory — real-time treasury intelligence and portfolio health' },
             { icon: TrendingUp, text: 'Predictive Cashflow — 30-day algorithmic expense & runway forecasting' },
-            { icon: Shield, text: 'Bank-Grade Encryption — AES-256 vault architecture, zero data sharing' },
+            { icon: Shield, text: 'Bank-Grade Vault — Zero fake credentials, OTP cryptographic anchoring' },
           ].map(({ icon: Icon, text }) => (
             <div key={text} className="auth-left-feature">
               <div className="auth-feat-icon">
@@ -95,79 +261,158 @@ export default function Login() {
           </Link>
 
           <div className="auth-header">
-            <h1 className="auth-title">Welcome back</h1>
-            <p className="auth-sub">Sign in to your financial dashboard</p>
+            <h1 className="auth-title">
+              {step === 'phone' ? 'Welcome back' : 'Enter verification code'}
+            </h1>
+            <p className="auth-sub">
+              {step === 'phone'
+                ? 'Sign in with your mobile number or Google account.'
+                : `Enter the 6-digit code sent to +91 ${phone}`}
+            </p>
           </div>
 
           {errorMessage && (
-            <div className="auth-alert-error" role="alert">
+            <div className="auth-alert-error" role="alert" style={{ marginBottom: '16px' }}>
+              <AlertCircle size={15} style={{ flexShrink: 0, marginRight: 6 }} />
               <span>{errorMessage}</span>
             </div>
           )}
 
-          <form className="auth-form" onSubmit={submit}>
-            <div className="auth-field">
-              <label className="auth-label">Email</label>
-              <div className="auth-input-wrap">
-                <Mail size={15} className="auth-input-icon" />
-                <input
-                  className="auth-input"
-                  type="email"
-                  name="email"
-                  value={form.email}
-                  onChange={handle}
-                  placeholder="you@example.com"
-                  required
-                  autoComplete="email"
-                />
+          {step === 'phone' ? (
+            <>
+              {/* Google Sign In Container */}
+              <div
+                className="auth-google-wrapper"
+                style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px', minHeight: '44px' }}
+              >
+                <div ref={googleBtnRef} />
               </div>
-            </div>
 
-            <div className="auth-field">
-              <div className="auth-row">
-                <label className="auth-label">Password</label>
-                <Link to="/forgot-password" className="auth-forgot">
-                  Forgot password?
-                </Link>
+              <div className="auth-divider">
+                <div className="auth-divider-line" />
+                <span>or sign in with mobile number</span>
+                <div className="auth-divider-line" />
               </div>
-              <div className="auth-input-wrap">
-                <Lock size={15} className="auth-input-icon" />
-                <input
-                  className="auth-input"
-                  type={showPass ? 'text' : 'password'}
-                  name="password"
-                  value={form.password}
-                  onChange={handle}
-                  placeholder="••••••••"
-                  required
-                  autoComplete="current-password"
-                />
-                <button type="button" className="auth-eye" onClick={() => setShowPass((p) => !p)} tabIndex={-1}>
-                  {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
+
+              <form className="auth-form" onSubmit={handleSendOtp}>
+                <div className="auth-field">
+                  <label className="auth-label">Registered Mobile Number</label>
+                  <div className="auth-phone-row">
+                    <span className="auth-phone-prefix">+91</span>
+                    <input
+                      className="auth-phone-input"
+                      type="tel"
+                      placeholder="98765 43210"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      autoFocus
+                      required
+                    />
+                  </div>
+                </div>
+
+                <motion.button
+                  type="submit"
+                  className={`auth-submit ${isSending ? 'is-loading' : ''}`}
+                  disabled={isSending || phone.length < 10}
+                  whileTap={!isSending && phone.length >= 10 ? { scale: 0.985 } : {}}
+                >
+                  {isSending ? (
+                    <div className="auth-btn-loader-wrap">
+                      <span className="auth-spinner-ring" />
+                      <span className="auth-btn-loader-text">Sending verification code...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <span>Continue with Phone</span>
+                      <ArrowRight size={16} />
+                    </>
+                  )}
+                </motion.button>
+              </form>
+            </>
+          ) : (
+            <div>
+              {/* 6-Digit input boxes */}
+              <div className="auth-digits-container" onPaste={handlePaste}>
+                {digits.map((digit, index) => (
+                  <input
+                    key={index}
+                    ref={(el) => (digitRefs.current[index] = el)}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={digit}
+                    onChange={(e) => handleDigitChange(index, e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(index, e)}
+                    className={`auth-digit-box ${digit ? 'filled' : ''}`}
+                  />
+                ))}
+              </div>
+
+              <motion.button
+                type="button"
+                className={`auth-submit ${isVerifying ? 'is-loading' : ''}`}
+                onClick={() => handleVerifyOtp()}
+                disabled={isVerifying || digits.some((d) => !d)}
+                whileTap={!isVerifying && digits.every((d) => d) ? { scale: 0.985 } : {}}
+              >
+                {isVerifying ? (
+                  <div className="auth-btn-loader-wrap">
+                    <span className="auth-spinner-ring" />
+                    <span className="auth-btn-loader-text">Verifying security code...</span>
+                  </div>
+                ) : (
+                  <>
+                    <span>Verify & Sign In</span>
+                    <ArrowRight size={16} />
+                  </>
+                )}
+              </motion.button>
+
+              <div className="auth-otp-meta-row">
+                {canResend ? (
+                  <button
+                    type="button"
+                    className="auth-resend-btn"
+                    onClick={handleSendOtp}
+                    disabled={isSending}
+                  >
+                    {isSending ? (
+                      <>
+                        <span className="auth-resend-spinner" />
+                        <span>Resending...</span>
+                      </>
+                    ) : (
+                      'Resend Code'
+                    )}
+                  </button>
+                ) : (
+                  <span className="auth-resend-timer">Resend in {countdown}s</span>
+                )}
+                <button
+                  type="button"
+                  className="auth-change-link"
+                  onClick={() => {
+                    setStep('phone');
+                    setDigits(['', '', '', '', '', '']);
+                    setErrorMessage('');
+                  }}
+                >
+                  Change mobile number
                 </button>
               </div>
             </div>
-
-            <motion.button type="submit" className="auth-submit" disabled={isPending} whileTap={{ scale: 0.98 }}>
-              {isPending ? (
-                <span className="auth-spinner" />
-              ) : (
-                <>
-                  <span>Sign in</span>
-                  <ArrowRight size={15} />
-                </>
-              )}
-            </motion.button>
-          </form>
+          )}
 
           <div className="auth-divider">
             <div className="auth-divider-line" />
-            <span>or</span>
+            <span>new to budgi?</span>
             <div className="auth-divider-line" />
           </div>
 
           <p className="auth-footer-text">
-            Don't have an account? <Link to="/register">Create one free</Link>
+            Don't have an account? <Link to="/register">Create an account</Link>
           </p>
         </motion.div>
       </div>

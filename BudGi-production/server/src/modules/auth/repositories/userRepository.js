@@ -9,6 +9,10 @@ async function findByEmail(email) {
   return User.findOne({ email: email.toLowerCase() });
 }
 
+async function findByPhone(phone) {
+  return User.findOne({ phone: phone.trim() });
+}
+
 async function findById(id) {
   return User.findById(id).lean();
 }
@@ -66,6 +70,7 @@ async function findByUsername(username) {
 
 module.exports = {
   findByEmail,
+  findByPhone,
   findByUsername,
   findById,
   create,

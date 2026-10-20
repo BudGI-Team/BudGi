@@ -110,6 +110,9 @@ class MainActivity : FragmentActivity() {
 
             AppTheme(darkTheme = isDarkMode) {
                 Box(modifier = Modifier.fillMaxSize()) {
+                    val updateScope = rememberCoroutineScope()
+                    val updateState by appUpdateManager.updateState.collectAsState()
+
                     // Active App Content: Preserved across backgrounding to avoid navigation state drops
                     if (isAuthenticated.value || !tokenManager.isBiometricEnabled) {
                         var smsPermissionGranted by remember { mutableStateOf(false) }
@@ -143,7 +146,12 @@ class MainActivity : FragmentActivity() {
                                 }
                                 permissionLauncher.launch(permissionsToRequest.toTypedArray())
                             },
-                            authRepository = authRepository
+                            authRepository = authRepository,
+                            onCheckForUpdates = {
+                                updateScope.launch {
+                                    appUpdateManager.checkForUpdates(isUserInitiated = true)
+                                }
+                            }
                         )
                     }
 
@@ -161,9 +169,6 @@ class MainActivity : FragmentActivity() {
                     }
 
                     // Background In-App Update Checker
-                    val updateState by appUpdateManager.updateState.collectAsState()
-                    val updateScope = rememberCoroutineScope()
-
                     LaunchedEffect(Unit) {
                         delay(2500)
                         appUpdateManager.checkForUpdates(isUserInitiated = false)

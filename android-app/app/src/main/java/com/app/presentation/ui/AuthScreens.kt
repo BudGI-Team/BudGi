@@ -31,6 +31,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -102,7 +103,8 @@ fun MinimalistTextField(
     isPassword: Boolean = false,
     passwordVisible: Boolean = false,
     onPasswordToggle: () -> Unit = {},
-    keyboardType: KeyboardType = KeyboardType.Text
+    keyboardType: KeyboardType = KeyboardType.Text,
+    leadingIcon: @Composable (() -> Unit)? = null
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
 
@@ -116,6 +118,7 @@ fun MinimalistTextField(
                 fontSize = 15.sp
             )
         },
+        leadingIcon = leadingIcon,
         trailingIcon = {
             if (isPassword) {
                 IconButton(onClick = onPasswordToggle) {
@@ -219,14 +222,16 @@ fun LoginScreen(
     onLoginSuccess: () -> Unit,
     viewModel: AuthViewModel = hiltViewModel()
 ) {
-    var email by rememberSaveable { mutableStateOf("") }
-    var password by rememberSaveable { mutableStateOf("") }
-    var passwordVisible by rememberSaveable { mutableStateOf(false) }
+    var phone by rememberSaveable { mutableStateOf("") }
+    var otp by rememberSaveable { mutableStateOf("") }
+    var countdown by remember { mutableIntStateOf(60) }
+    var canResend by remember { mutableStateOf(false) }
 
     val uiState by viewModel.uiState.collectAsState()
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
 
     LaunchedEffect(uiState.isSuccess) {
         if (uiState.isSuccess) {
@@ -235,10 +240,26 @@ fun LoginScreen(
         }
     }
 
-    val isValidEmail = email.isNotBlank() && android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()
-    val isValidPassword = password.isNotEmpty()
+    LaunchedEffect(uiState.isOtpSent) {
+        if (uiState.isOtpSent) {
+            countdown = 60
+            canResend = false
+            while (countdown > 0) {
+                kotlinx.coroutines.delay(1000)
+                countdown--
+            }
+            canResend = true
+        }
+    }
 
     AuthBackground {
+        if (uiState.requiresPhoneVerification) {
+            PhoneVerificationSheet(
+                viewModel = viewModel,
+                onDismiss = { viewModel.resetState() }
+            )
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -246,7 +267,7 @@ fun LoginScreen(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(56.dp))
+            Spacer(modifier = Modifier.height(48.dp))
 
             // BudGi Logo
             Image(
@@ -255,7 +276,7 @@ fun LoginScreen(
                 modifier = Modifier.size(52.dp)
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             Text(
                 "Welcome Back",
@@ -265,140 +286,225 @@ fun LoginScreen(
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                "Secure access to your financial dashboard",
+                if (!uiState.isOtpSent) "Sign in with Google or your verified phone number" else "Enter the verification code sent to your phone",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Email input
-            MinimalistTextField(
-                value = email,
-                onValueChange = { email = it },
-                placeholder = "Email address",
-                keyboardType = KeyboardType.Email
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Password input
-            MinimalistTextField(
-                value = password,
-                onValueChange = { password = it },
-                placeholder = "Password",
-                isPassword = true,
-                passwordVisible = passwordVisible,
-                onPasswordToggle = { passwordVisible = !passwordVisible }
-            )
-
-            // Forgot password
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                Text(
-                    "Forgot Password?",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
-                    modifier = Modifier.clickable { onNavigateToForgotPassword() }
-                )
-            }
-
-            if (uiState.error != null) {
-                Text(
-                    uiState.error!!,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp)
-                )
-            }
-
-            // Primary Log In Button
-            MinimalistButton(
-                text = "Log In",
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    viewModel.login(email.trim().lowercase(), password)
-                },
-                isLoading = uiState.isLoading,
-                enabled = isValidEmail && isValidPassword && !uiState.isLoading
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
             )
 
             Spacer(modifier = Modifier.height(28.dp))
 
-            val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+            if (!uiState.isOtpSent) {
+                // Google Sign In Button
+                OutlinedButton(
+                    onClick = {
+                        val credentialManager = CredentialManager.create(context)
+                        val googleIdOption = GetGoogleIdOption.Builder()
+                            .setFilterByAuthorizedAccounts(false)
+                            .setServerClientId(context.getString(R.string.google_server_client_id))
+                            .build()
+                        val request = GetCredentialRequest.Builder().addCredentialOption(googleIdOption).build()
+                        coroutineScope.launch {
+                            try {
+                                val result = credentialManager.getCredential(context, request)
+                                val credential = result.credential
+                                if (credential is GoogleIdTokenCredential) {
+                                    viewModel.handleGoogleSignIn(credential.idToken)
+                                }
+                            } catch (e: Exception) { }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp),
+                    shape = RoundedCornerShape(BudgiRadius.Pill),
+                    border = BorderStroke(
+                        1.dp,
+                        if (isDark) DarkColors.GlassBorderStrong else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.60f)
+                    ),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = if (isDark) Color(0xFF131722).copy(alpha = 0.50f) else Color.White
+                    )
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_google),
+                        contentDescription = "Google",
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "Continue with Google",
+                        color = MaterialTheme.colorScheme.onBackground,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
 
-            // Divider
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
-            ) {
-                HorizontalDivider(
-                    modifier = Modifier.weight(1f),
-                    color = if (isDark) DarkColors.GlassBorderStrong else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
-                )
-                Text(
-                    " Or continue with ",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(horizontal = 12.dp)
-                )
-                HorizontalDivider(
-                    modifier = Modifier.weight(1f),
-                    color = if (isDark) DarkColors.GlassBorderStrong else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
-                )
-            }
+                Spacer(modifier = Modifier.height(24.dp))
 
-            Spacer(modifier = Modifier.height(24.dp))
+                // Divider
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+                ) {
+                    HorizontalDivider(
+                        modifier = Modifier.weight(1f),
+                        color = if (isDark) DarkColors.GlassBorderStrong else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                    )
+                    Text(
+                        " or continue with phone ",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 12.dp)
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.weight(1f),
+                        color = if (isDark) DarkColors.GlassBorderStrong else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                    )
+                }
 
-            // Google Sign In Button (54dp Pill matching Onboarding)
-            OutlinedButton(
-                onClick = {
-                    val credentialManager = CredentialManager.create(context)
-                    val googleIdOption = GetGoogleIdOption.Builder()
-                        .setFilterByAuthorizedAccounts(false)
-                        .setServerClientId(context.getString(R.string.google_server_client_id))
-                        .build()
-                    val request = GetCredentialRequest.Builder().addCredentialOption(googleIdOption).build()
-                    coroutineScope.launch {
-                        try {
-                            val result = credentialManager.getCredential(context, request)
-                            val credential = result.credential
-                            if (credential is GoogleIdTokenCredential) {
-                                viewModel.handleGoogleSignIn(credential.idToken)
-                            }
-                        } catch (e: Exception) { }
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Phone input
+                MinimalistTextField(
+                    value = phone,
+                    onValueChange = { if (it.length <= 10 && it.all { c -> c.isDigit() }) phone = it },
+                    placeholder = "10-digit mobile number",
+                    keyboardType = KeyboardType.Phone,
+                    leadingIcon = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(start = 14.dp, end = 6.dp)
+                        ) {
+                            Text("+91", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.onBackground)
+                            Spacer(Modifier.width(8.dp))
+                            Box(modifier = Modifier.width(1.dp).height(20.dp).background(if (isDark) DarkColors.GlassBorderStrong else MaterialTheme.colorScheme.outlineVariant))
+                        }
                     }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(54.dp),
-                shape = RoundedCornerShape(BudgiRadius.Pill),
-                border = BorderStroke(
-                    1.dp,
-                    if (isDark) DarkColors.GlassBorderStrong else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.60f)
-                ),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = if (isDark) Color(0xFF131722).copy(alpha = 0.50f) else Color.White
                 )
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_google),
-                    contentDescription = "Google",
-                    modifier = Modifier.size(20.dp)
+
+                if (uiState.error != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        uiState.error!!,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Send OTP Button
+                MinimalistButton(
+                    text = "Continue with Phone",
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        viewModel.phoneLoginRequest(phone)
+                    },
+                    isLoading = uiState.isLoading,
+                    enabled = phone.length == 10 && !uiState.isLoading
                 )
-                Spacer(Modifier.width(12.dp))
-                Text(
-                    "Continue with Google",
-                    color = MaterialTheme.colorScheme.onBackground,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold
+            } else {
+                // OTP Step
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (isDark) Color(0xFF131722).copy(alpha = 0.6f) else Color(0xFFF1F5F9))
+                        .border(1.dp, if (isDark) DarkColors.GlassBorderStrong else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                        .padding(16.dp)
+                ) {
+                    Column {
+                        Text(
+                            "Verification code sent to",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                "+91 $phone",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                            Text(
+                                "Change",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onBackground,
+                                textDecoration = TextDecoration.Underline,
+                                modifier = Modifier.clickable {
+                                    viewModel.resetOtpState()
+                                    otp = ""
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                MinimalistTextField(
+                    value = otp,
+                    onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) otp = it },
+                    placeholder = "Enter 6-digit OTP",
+                    keyboardType = KeyboardType.NumberPassword
+                )
+
+                if (uiState.error != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        uiState.error!!,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Resend timer
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (canResend) {
+                        Text(
+                            "Resend Code",
+                            color = MaterialTheme.colorScheme.onBackground,
+                            textDecoration = TextDecoration.Underline,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.clickable {
+                                viewModel.phoneLoginRequest(phone)
+                            }
+                        )
+                    } else {
+                        Text(
+                            "Resend code in ${countdown}s",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                MinimalistButton(
+                    text = "Verify & Access Account",
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        viewModel.phoneLoginVerify(phone, otp)
+                    },
+                    isLoading = uiState.isLoading,
+                    enabled = otp.length == 6 && !uiState.isLoading
                 )
             }
 
@@ -419,7 +525,10 @@ fun LoginScreen(
                     color = MaterialTheme.colorScheme.onBackground,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
-                    modifier = Modifier.clickable { onNavigateToSignUp() }
+                    modifier = Modifier.clickable {
+                        viewModel.resetOtpState()
+                        onNavigateToSignUp()
+                    }
                 )
             }
         }
@@ -433,17 +542,17 @@ fun SignUpScreen(
     viewModel: AuthViewModel = hiltViewModel()
 ) {
     var name by rememberSaveable { mutableStateOf("") }
-    var email by rememberSaveable { mutableStateOf("") }
-    var password by rememberSaveable { mutableStateOf("") }
-    var confirmPassword by rememberSaveable { mutableStateOf("") }
-    var passwordVisible by rememberSaveable { mutableStateOf(false) }
-    var confirmPasswordVisible by rememberSaveable { mutableStateOf(false) }
-    var agreeTerms by rememberSaveable { mutableStateOf(false) }
+    var phone by rememberSaveable { mutableStateOf("") }
+    var username by rememberSaveable { mutableStateOf("") }
+    var otp by rememberSaveable { mutableStateOf("") }
+    var countdown by remember { mutableIntStateOf(60) }
+    var canResend by remember { mutableStateOf(false) }
 
     val uiState by viewModel.uiState.collectAsState()
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
 
     LaunchedEffect(uiState.isSuccess) {
         if (uiState.isSuccess) {
@@ -452,155 +561,435 @@ fun SignUpScreen(
         }
     }
 
-    val isValidEmail = email.isNotBlank() && android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()
-    val isValidPassword = password.length >= 8 && password == confirmPassword
+    LaunchedEffect(uiState.isOtpSent) {
+        if (uiState.isOtpSent) {
+            countdown = 60
+            canResend = false
+            while (countdown > 0) {
+                kotlinx.coroutines.delay(1000)
+                countdown--
+            }
+            canResend = true
+        }
+    }
 
     AuthBackground {
+        if (uiState.requiresPhoneVerification) {
+            PhoneVerificationSheet(
+                viewModel = viewModel,
+                onDismiss = { viewModel.resetState() }
+            )
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 24.dp)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(48.dp))
-            
+
             // Logo centered
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Image(
                     painter = painterResource(id = R.drawable.budgi_logo),
                     contentDescription = "Logo",
-                    modifier = Modifier.size(48.dp)
+                    modifier = Modifier.size(52.dp)
                 )
             }
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
+
+            Spacer(modifier = Modifier.height(20.dp))
+
             Text(
-                "Create Your Account",
+                "Create Account",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                "Start managing personal and collaborative wealth.",
+                if (!uiState.isOtpSent) "Join BudGi with Google or verified mobile number" else "Enter the verification code to complete setup",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
             )
-            
-            Spacer(modifier = Modifier.height(28.dp))
-            
-            MinimalistTextField(value = name, onValueChange = { name = it }, placeholder = "Full Name")
-            Spacer(modifier = Modifier.height(16.dp))
-            MinimalistTextField(value = email, onValueChange = { email = it }, placeholder = "Email address", keyboardType = KeyboardType.Email)
-            Spacer(modifier = Modifier.height(16.dp))
-            MinimalistTextField(value = password, onValueChange = { password = it }, placeholder = "Password (min 8 chars)", isPassword = true, passwordVisible = passwordVisible, onPasswordToggle = { passwordVisible = !passwordVisible })
-            Spacer(modifier = Modifier.height(16.dp))
-            MinimalistTextField(value = confirmPassword, onValueChange = { confirmPassword = it }, placeholder = "Confirm Password", isPassword = true, passwordVisible = confirmPasswordVisible, onPasswordToggle = { confirmPasswordVisible = !confirmPasswordVisible })
-            
-            val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
 
-            // Terms & Conditions checkbox
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(vertical = 14.dp)
-            ) {
-                Checkbox(
-                    checked = agreeTerms,
-                    onCheckedChange = { agreeTerms = it },
-                    colors = CheckboxDefaults.colors(
-                        checkedColor = if (isDark) Color.White else Color(0xFF0F172A),
-                        checkmarkColor = if (isDark) Color.Black else Color.White,
-                        uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant
+            Spacer(modifier = Modifier.height(28.dp))
+
+            if (!uiState.isOtpSent) {
+                // Google Sign In Button
+                OutlinedButton(
+                    onClick = {
+                        val credentialManager = CredentialManager.create(context)
+                        val googleIdOption = GetGoogleIdOption.Builder()
+                            .setFilterByAuthorizedAccounts(false)
+                            .setServerClientId(context.getString(R.string.google_server_client_id))
+                            .build()
+                        val request = GetCredentialRequest.Builder().addCredentialOption(googleIdOption).build()
+                        coroutineScope.launch {
+                            try {
+                                val result = credentialManager.getCredential(context, request)
+                                val credential = result.credential
+                                if (credential is GoogleIdTokenCredential) viewModel.handleGoogleSignIn(credential.idToken)
+                            } catch (e: Exception) { }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp),
+                    shape = RoundedCornerShape(BudgiRadius.Pill),
+                    border = BorderStroke(
+                        1.dp,
+                        if (isDark) DarkColors.GlassBorderStrong else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.60f)
+                    ),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = if (isDark) Color(0xFF131722).copy(alpha = 0.50f) else Color.White
                     )
-                )
-                Text(
-                    "I agree to the Terms of Service and Privacy Policy",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp
-                )
-            }
-            
-            if (uiState.error != null) {
-                Text(uiState.error!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))
-            }
-            
-            // Primary create account button
-            MinimalistButton(
-                text = "Create Account",
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    viewModel.signUp(name.trim(), email.trim().lowercase(), password)
-                },
-                isLoading = uiState.isLoading,
-                enabled = isValidEmail && isValidPassword && name.isNotBlank() && agreeTerms && !uiState.isLoading
-            )
-            
-            Spacer(modifier = Modifier.height(28.dp))
-            
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
-            ) {
-                HorizontalDivider(
-                    modifier = Modifier.weight(1f),
-                    color = if (isDark) DarkColors.GlassBorderStrong else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
-                )
-                Text(
-                    " Or continue with ",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(horizontal = 12.dp)
-                )
-                HorizontalDivider(
-                    modifier = Modifier.weight(1f),
-                    color = if (isDark) DarkColors.GlassBorderStrong else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
-                )
-            }
+                ) {
+                    Image(painter = painterResource(id = R.drawable.ic_google), contentDescription = "Google", modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Text("Sign up with Google", color = MaterialTheme.colorScheme.onBackground, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                }
 
-            Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-            // Google Sign In Button (54dp Pill matching Onboarding)
-            OutlinedButton(
-                onClick = {
-                    val credentialManager = CredentialManager.create(context)
-                    val googleIdOption = GetGoogleIdOption.Builder()
-                        .setFilterByAuthorizedAccounts(false)
-                        .setServerClientId(context.getString(R.string.google_server_client_id))
-                        .build()
-                    val request = GetCredentialRequest.Builder().addCredentialOption(googleIdOption).build()
-                    coroutineScope.launch {
-                        try {
-                            val result = credentialManager.getCredential(context, request)
-                            val credential = result.credential
-                            if (credential is GoogleIdTokenCredential) viewModel.handleGoogleSignIn(credential.idToken)
-                        } catch (e: Exception) { }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+                ) {
+                    HorizontalDivider(
+                        modifier = Modifier.weight(1f),
+                        color = if (isDark) DarkColors.GlassBorderStrong else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                    )
+                    Text(
+                        " or register with phone ",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 12.dp)
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.weight(1f),
+                        color = if (isDark) DarkColors.GlassBorderStrong else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                MinimalistTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    placeholder = "Full Name"
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                MinimalistTextField(
+                    value = phone,
+                    onValueChange = { if (it.length <= 10 && it.all { c -> c.isDigit() }) phone = it },
+                    placeholder = "10-digit mobile number",
+                    keyboardType = KeyboardType.Phone,
+                    leadingIcon = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(start = 14.dp, end = 6.dp)
+                        ) {
+                            Text("+91", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.onBackground)
+                            Spacer(Modifier.width(8.dp))
+                            Box(modifier = Modifier.width(1.dp).height(20.dp).background(if (isDark) DarkColors.GlassBorderStrong else MaterialTheme.colorScheme.outlineVariant))
+                        }
                     }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(54.dp),
-                shape = RoundedCornerShape(BudgiRadius.Pill),
-                border = BorderStroke(
-                    1.dp,
-                    if (isDark) DarkColors.GlassBorderStrong else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.60f)
-                ),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = if (isDark) Color(0xFF131722).copy(alpha = 0.50f) else Color.White
                 )
-            ) {
-                Image(painter = painterResource(id = R.drawable.ic_google), contentDescription = "Google", modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(12.dp))
-                Text("Continue with Google", color = MaterialTheme.colorScheme.onBackground, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                MinimalistTextField(
+                    value = username,
+                    onValueChange = { username = it.filter { c -> c.isLetterOrDigit() || c == '_' } },
+                    placeholder = "Username (optional)"
+                )
+
+                if (uiState.error != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        uiState.error!!,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                MinimalistButton(
+                    text = "Continue with Phone",
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        viewModel.phoneRegisterRequest(phone, name, username.ifBlank { null })
+                    },
+                    isLoading = uiState.isLoading,
+                    enabled = name.trim().length >= 2 && phone.length == 10 && !uiState.isLoading
+                )
+            } else {
+                // OTP Step
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (isDark) Color(0xFF131722).copy(alpha = 0.6f) else Color(0xFFF1F5F9))
+                        .border(1.dp, if (isDark) DarkColors.GlassBorderStrong else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                        .padding(16.dp)
+                ) {
+                    Column {
+                        Text(
+                            "Verification code sent to",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                "+91 $phone",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                            Text(
+                                "Change",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onBackground,
+                                textDecoration = TextDecoration.Underline,
+                                modifier = Modifier.clickable {
+                                    viewModel.resetOtpState()
+                                    otp = ""
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                MinimalistTextField(
+                    value = otp,
+                    onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) otp = it },
+                    placeholder = "Enter 6-digit OTP",
+                    keyboardType = KeyboardType.NumberPassword
+                )
+
+                if (uiState.error != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        uiState.error!!,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (canResend) {
+                        Text(
+                            "Resend Code",
+                            color = MaterialTheme.colorScheme.onBackground,
+                            textDecoration = TextDecoration.Underline,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.clickable {
+                                viewModel.phoneRegisterRequest(phone, name, username.ifBlank { null })
+                            }
+                        )
+                    } else {
+                        Text(
+                            "Resend code in ${countdown}s",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                MinimalistButton(
+                    text = "Complete Registration",
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        viewModel.phoneRegisterVerify(phone, otp, name, username.ifBlank { null })
+                    },
+                    isLoading = uiState.isLoading,
+                    enabled = otp.length == 6 && !uiState.isLoading
+                )
             }
-            
+
             Spacer(modifier = Modifier.weight(1f))
-            
-            Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 32.dp)) {
-                Text("Already have an account? ", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
-                Text("Log In", color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.clickable { onNavigateToLogin() })
+
+            Row(
+                modifier = Modifier.padding(top = 24.dp, bottom = 32.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Already have an account? ",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 14.sp
+                )
+                Text(
+                    "Log In",
+                    color = MaterialTheme.colorScheme.onBackground,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    modifier = Modifier.clickable {
+                        viewModel.resetOtpState()
+                        onNavigateToLogin()
+                    }
+                )
             }
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PhoneVerificationSheet(
+    viewModel: AuthViewModel,
+    onDismiss: () -> Unit
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    var phone by rememberSaveable { mutableStateOf("") }
+    var otp by rememberSaveable { mutableStateOf("") }
+    var countdown by remember { mutableIntStateOf(60) }
+    var canResend by remember { mutableStateOf(false) }
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+
+    LaunchedEffect(uiState.isOtpSent) {
+        if (uiState.isOtpSent) {
+            countdown = 60
+            canResend = false
+            while (countdown > 0) {
+                kotlinx.coroutines.delay(1000)
+                countdown--
+            }
+            canResend = true
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = if (isDark) Color(0xFF0F121C) else Color.White,
+        scrimColor = Color.Black.copy(alpha = 0.65f),
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 20.dp)
+                .navigationBarsPadding(),
+            horizontalAlignment = Alignment.Start
+        ) {
+            Text(
+                if (!uiState.isOtpSent) "Phone Verification" else "Enter Verification Code",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                if (!uiState.isOtpSent)
+                    "Link your mobile number to secure your BudGi account."
+                else
+                    "Enter the 6-digit code sent to +91 $phone",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            if (uiState.error != null) {
+                Text(
+                    uiState.error!!,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+
+            if (!uiState.isOtpSent) {
+                MinimalistTextField(
+                    value = phone,
+                    onValueChange = { if (it.length <= 10 && it.all { char -> char.isDigit() }) phone = it },
+                    placeholder = "10-digit Mobile Number",
+                    keyboardType = KeyboardType.Phone
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                MinimalistButton(
+                    text = "Send 6-Digit OTP",
+                    onClick = {
+                        val clean = phone.filter { it.isDigit() }
+                        viewModel.sendPhoneOtp("+91$clean")
+                    },
+                    isLoading = uiState.isLoading,
+                    enabled = phone.length == 10 && !uiState.isLoading
+                )
+            } else {
+                MinimalistTextField(
+                    value = otp,
+                    onValueChange = { if (it.length <= 6 && it.all { char -> char.isDigit() }) otp = it },
+                    placeholder = "••••••",
+                    keyboardType = KeyboardType.NumberPassword
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                MinimalistButton(
+                    text = "Verify & Access Account",
+                    onClick = {
+                        val clean = phone.filter { it.isDigit() }
+                        viewModel.verifyPhoneOtp("+91$clean", otp)
+                    },
+                    isLoading = uiState.isLoading,
+                    enabled = otp.length == 6 && !uiState.isLoading
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (canResend) {
+                    Text(
+                        "Resend Code",
+                        color = MaterialTheme.colorScheme.onBackground,
+                        textDecoration = TextDecoration.Underline,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.clickable {
+                            val clean = phone.filter { it.isDigit() }
+                            viewModel.sendPhoneOtp("+91$clean")
+                        }
+                    )
+                } else {
+                    Text(
+                        "Resend code in ${countdown}s",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+

@@ -409,11 +409,31 @@ export default function Landing() {
                 </AnimatePresence>
               </motion.button>
               {isAuthenticated ? (
-                <MagneticBtn to="/app/dashboard" className="btn-primary nav-cta-btn hide-on-mobile">
-                  Dashboard <ArrowRight size={14} />
-                </MagneticBtn>
+                <>
+                  <button
+                    className="nav-link-btn hide-on-mobile"
+                    onClick={() => setShowDownloadModal(true)}
+                    title="Download BudGi for Android"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit' }}
+                  >
+                    <Smartphone size={15} />
+                    <span>Android APK</span>
+                  </button>
+                  <MagneticBtn to="/app/dashboard" className="btn-primary nav-cta-btn hide-on-mobile">
+                    Dashboard <ArrowRight size={14} />
+                  </MagneticBtn>
+                </>
               ) : (
                 <>
+                  <button
+                    className="nav-link-btn hide-on-mobile"
+                    onClick={() => setShowDownloadModal(true)}
+                    title="Download BudGi for Android"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit' }}
+                  >
+                    <Smartphone size={15} />
+                    <span>Android APK</span>
+                  </button>
                   <Link to="/login" className="nav-link-btn hide-on-mobile">
                     Sign in
                   </Link>
@@ -649,7 +669,7 @@ export default function Landing() {
                   transition={{ duration: 0.8, delay: 0.2, ease: 'easeOut' }}
                   style={{}}
                 >
-                  <HeroDashboard />
+                  <HeroDashboard onOpenDownload={() => setShowDownloadModal(true)} />
                 </motion.div>
               </div>
             </motion.div>
@@ -1379,7 +1399,7 @@ const HERO_CHAPTERS = [
   },
 ];
 
-function HeroDashboard() {
+function HeroDashboard({ onOpenDownload: _onOpenDownload }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
