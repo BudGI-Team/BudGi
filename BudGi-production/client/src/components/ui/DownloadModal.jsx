@@ -26,7 +26,7 @@ export default function DownloadModal({ isOpen, onClose }) {
   const handleDownload = () => {
     setDownloadStarted(true);
     const link = document.createElement('a');
-    link.href = APK_DOWNLOAD_URL;
+    link.href = '/BudGi.apk';
     link.download = 'BudGi.apk';
     document.body.appendChild(link);
     link.click();
