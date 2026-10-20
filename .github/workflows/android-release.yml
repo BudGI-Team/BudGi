@@ -94,4 +94,4 @@ jobs:
             4. Tap **Install** (or **Update**).
             5. Open BudGi and enjoy frictionless real-time budgeting!
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
