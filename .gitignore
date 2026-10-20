@@ -16,9 +16,9 @@ android-app/.cxx/
 *.pem
 *.key
 !android-app/app/budgi-release.jks
+!android-app/app/google-services.json
 key.properties
 signing.properties
-google-services.json
 
 # Android Build outputs
 *.apk

@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "257509947874",
+    "project_id": "budgi-512209",
+    "storage_bucket": "budgi-512209.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:257509947874:android:68980dea46717f27ab21bb",
+        "android_client_info": {
+          "package_name": "com.budgi.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "257509947874-sbr1d7ev97clthmsh5jdc3ajtaqc3q8b.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAUlLYW2rmOxH1fAF3VTDXC9TysC5ywbto"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "257509947874-sbr1d7ev97clthmsh5jdc3ajtaqc3q8b.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
