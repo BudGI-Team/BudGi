@@ -40,6 +40,7 @@ android {
                 keyPassword = System.getenv("KEY_PASSWORD") ?: "BudGiKeystorePassword2026!"
                 enableV1Signing = true
                 enableV2Signing = true
+                enableV3Signing = true
             }
         }
     }
