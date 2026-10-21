@@ -23,11 +23,15 @@ class FinanceApplication : Application(), ImageLoaderFactory {
         super.onCreate()
 
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-            if (tokenManager.isLoggedIn) {
-                webSocketManager.connect()
+            try {
+                if (tokenManager.isLoggedIn) {
+                    webSocketManager.connect()
+                }
+                com.app.data.sync.SyncWorkScheduler.schedulePeriodicSync(this@FinanceApplication)
+                com.app.data.watchdog.WatchdogWorkScheduler.schedulePeriodicWatchdog(this@FinanceApplication)
+            } catch (e: Exception) {
+                android.util.Log.e("FinanceApplication", "Background initialization failed", e)
             }
-            com.app.data.sync.SyncWorkScheduler.schedulePeriodicSync(this@FinanceApplication)
-            com.app.data.watchdog.WatchdogWorkScheduler.schedulePeriodicWatchdog(this@FinanceApplication)
         }
     }
 

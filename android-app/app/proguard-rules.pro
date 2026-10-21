@@ -23,9 +23,18 @@
     volatile <fields>;
 }
 
-# ── Room ─────────────────────────────────────────────────────────────
--keep class * extends androidx.room.RoomDatabase
+# ── Room Database, DAOs & Entities ────────────────────────────────────
+-keepclassmembers class * extends androidx.room.RoomDatabase {
+    public <methods>;
+}
+-keep class * extends androidx.room.RoomDatabase { *; }
+-keep class **_Impl { *; }
+-keep interface com.app.data.local.dao.** { *; }
+-keep class com.app.data.local.dao.** { *; }
+-keep class com.app.data.local.entity.** { *; }
+-keep class com.app.data.local.db.** { *; }
 -dontwarn androidx.room.paging.**
+-dontwarn androidx.room.**
 
 # ── Serialization ────────────────────────────────────────────────────
 -keepattributes *Annotation*, InnerClasses
@@ -33,13 +42,26 @@
 -keep,allowobfuscation,allowshrinking class kotlinx.serialization.internal.**
 -keep,allowobfuscation,allowshrinking class kotlinx.serialization.**
 
-# ── Hilt ─────────────────────────────────────────────────────────────
+# ── Hilt & Dagger ───────────────────────────────────────────────────
 -keep,allowobfuscation,allowshrinking @interface dagger.hilt.**
 -keep class dagger.hilt.** { *; }
+-keep class * extends dagger.hilt.internal.GeneratedComponent { *; }
+-keep class * extends dagger.hilt.internal.TestSingletonComponent { *; }
+-keep @dagger.hilt.android.EarlyEntryPoint class * { *; }
+-keep @dagger.hilt.EntryPoint class * { *; }
+-keep @dagger.hilt.InstallIn class * { *; }
+-keep class com.app.di.** { *; }
+-keepclassmembers class * {
+    @javax.inject.Inject <init>(...);
+    @javax.inject.Inject <fields>;
+    @javax.inject.Inject <methods>;
+}
 
-# ── Data Models (Keep domain models for serialization) ───────────────
+# ── Domain Models, Entities, DTOs ───────────────────────────────────
 -keep class com.app.domain.model.** { *; }
 -keep class com.app.data.remote.dto.** { *; }
+-keep class com.app.data.updater.** { *; }
+-keep class com.app.security.** { *; }
 
 # ── Coil Image Loading ──────────────────────────────────────────────
 -keep class coil.** { *; }
@@ -55,9 +77,46 @@
 -keep class com.google.android.libraries.identity.googleid.** { *; }
 -dontwarn com.google.android.libraries.identity.googleid.**
 
-# ── AndroidX Security (EncryptedSharedPreferences) ──────────────────
+# ── AndroidX Security & Google Tink (EncryptedSharedPreferences) ────
 -keep class androidx.security.crypto.** { *; }
 -dontwarn androidx.security.crypto.**
+-keep class com.google.crypto.tink.** { *; }
+-dontwarn com.google.crypto.tink.**
+-keepclassmembers class * extends com.google.crypto.tink.shaded.protobuf.GeneratedMessageLite {
+    <fields>;
+}
+
+# ── AndroidX WorkManager & Workers ───────────────────────────────────
+-keep class androidx.work.** { *; }
+-dontwarn androidx.work.**
+-keep class * extends androidx.work.ListenableWorker {
+    public <init>(android.content.Context, androidx.work.WorkerParameters);
+}
+-keep class * extends androidx.work.Worker {
+    public <init>(android.content.Context, androidx.work.WorkerParameters);
+}
+-keep class * extends androidx.work.CoroutineWorker {
+    public <init>(android.content.Context, androidx.work.WorkerParameters);
+}
+-keep class com.app.data.sync.** { *; }
+-dontwarn com.app.data.sync.**
+-keep class com.app.data.watchdog.** { *; }
+-dontwarn com.app.data.watchdog.**
+-keep class com.app.data.sms.** { *; }
+-dontwarn com.app.data.sms.**
+
+# ── Glance AppWidget ────────────────────────────────────────────────
+-keep class androidx.glance.** { *; }
+-dontwarn androidx.glance.**
+-keep class com.app.presentation.widget.** { *; }
+
+# ── AndroidX SplashScreen ───────────────────────────────────────────
+-keep class androidx.core.splashscreen.** { *; }
+-dontwarn androidx.core.splashscreen.**
+
+# ── Jetpack Compose ─────────────────────────────────────────────────
+-keep class androidx.compose.** { *; }
+-dontwarn androidx.compose.**
 
 # ── Gson (used by Retrofit converter) ───────────────────────────────
 -keepattributes EnclosingMethod
@@ -65,6 +124,9 @@
 -keep class * implements com.google.gson.TypeAdapterFactory
 -keep class * implements com.google.gson.JsonSerializer
 -keep class * implements com.google.gson.JsonDeserializer
+-keepclassmembers,allowobfuscation class * {
+    @com.google.gson.annotations.SerializedName <fields>;
+}
 
 # ── Prevent R8 from removing error info ─────────────────────────────
 -keepattributes SourceFile,LineNumberTable
