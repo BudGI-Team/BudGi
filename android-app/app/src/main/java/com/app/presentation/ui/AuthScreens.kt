@@ -311,7 +311,9 @@ fun LoginScreen(
                                 if (credential is GoogleIdTokenCredential) {
                                     viewModel.handleGoogleSignIn(credential.idToken)
                                 }
-                            } catch (e: Exception) { }
+                            } catch (e: Exception) {
+                                viewModel.setAuthError("Google Sign-In failed: ${e.localizedMessage ?: "Operation cancelled"}")
+                            }
                         }
                     },
                     modifier = Modifier
@@ -632,7 +634,9 @@ fun SignUpScreen(
                                 val result = credentialManager.getCredential(context, request)
                                 val credential = result.credential
                                 if (credential is GoogleIdTokenCredential) viewModel.handleGoogleSignIn(credential.idToken)
-                            } catch (e: Exception) { }
+                            } catch (e: Exception) {
+                                viewModel.setAuthError("Google Sign-In failed: ${e.localizedMessage ?: "Operation cancelled"}")
+                            }
                         }
                     },
                     modifier = Modifier

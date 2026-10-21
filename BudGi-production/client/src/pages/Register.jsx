@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { User, ArrowRight, Cpu, Shield, TrendingUp, AlertCircle } from '../lib/icons';
 import BrandLogo from '../components/ui/BrandLogo';
+import PhoneVerificationModal from '../components/auth/PhoneVerificationModal';
 import { authApi } from '../lib/api';
 import useStore from '../store/useStore';
 import toast from 'react-hot-toast';
@@ -20,6 +21,11 @@ export default function Register() {
   const [isSending, setIsSending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [verificationModal, setVerificationModal] = useState({
+    isOpen: false,
+    preAuthToken: null,
+    user: null,
+  });
 
   const googleBtnRef = useRef(null);
   const digitRefs = useRef([]);
@@ -41,13 +47,24 @@ export default function Register() {
     return () => clearInterval(timer);
   }, [step, countdown]);
 
-  // Seamless Google Registration — Direct access without phone interruptions
+  // Seamless Google Registration with Dual-Anchor phone verification support
   const handleGoogleResponse = useCallback(async (response) => {
     if (!response.credential) return;
     setErrorMessage('');
     try {
       const res = await authApi.googleLogin(response.credential);
       const data = res?.data || res;
+
+      if (data?.requiresPhoneVerification && data?.preAuthToken) {
+        setVerificationModal({
+          isOpen: true,
+          preAuthToken: data.preAuthToken,
+          user: data.user,
+        });
+        toast('Google account linked. Please verify your phone number to finish registration.', { icon: '📱' });
+        return;
+      }
+
       if (data?.token && data?.user) {
         setAuth(data.user, data.token);
         if (data.refreshToken) {
@@ -61,6 +78,16 @@ export default function Register() {
       toast.error(err.userMessage || 'Google Sign-In failed');
     }
   }, [navigate, setAuth]);
+
+  const handleModalVerified = ({ token, refreshToken, user: authUser }) => {
+    setVerificationModal({ isOpen: false, preAuthToken: null, user: null });
+    setAuth(authUser, token);
+    if (refreshToken) {
+      localStorage.setItem('budgi_refresh_token', refreshToken);
+    }
+    toast.success(`Welcome to BudGi, ${authUser.name?.split(' ')[0] || 'there'}!`);
+    navigate('/onboarding');
+  };
 
   useEffect(() => {
     const clientId =
@@ -490,6 +517,14 @@ export default function Register() {
           </p>
         </motion.div>
       </div>
+
+      <PhoneVerificationModal
+        isOpen={verificationModal.isOpen}
+        onClose={() => setVerificationModal({ isOpen: false, preAuthToken: null, user: null })}
+        preAuthToken={verificationModal.preAuthToken}
+        _user={verificationModal.user}
+        onVerified={handleModalVerified}
+      />
     </div>
   );
 }

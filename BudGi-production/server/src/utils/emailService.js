@@ -117,13 +117,30 @@ function passwordResetEmail(name, resetUrl) {
           This link expires in 1 hour. If you didn't request this, ignore this email — your password won't change.
         </p>
       </div>
-    </div>
   `;
   return { subject: 'Reset your BudGi password', html };
+}
+
+function otpEmail(identifier, otp) {
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #04040A; color: #FFFFFF; padding: 32px; border-radius: 16px; max-width: 480px; margin: 0 auto; border: 1px solid rgba(255,255,255,0.1);">
+      <div style="text-align: center; margin-bottom: 24px;">
+        <h1 style="font-size: 26px; font-weight: 800; color: #7C6AF5; margin: 0;">BudGi</h1>
+        <p style="color: #64748B; font-size: 13px; margin-top: 4px;">Security Verification Code</p>
+      </div>
+      <p style="color: #94A3B8; font-size: 14px;">Use the following 6-digit verification code to authenticate your account ${identifier ? `(${identifier})` : ''}:</p>
+      <div style="background: rgba(124, 106, 245, 0.12); border: 1px solid #7C6AF5; border-radius: 12px; padding: 20px; text-align: center; margin: 24px 0;">
+        <span style="font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #7C6AF5;">${otp}</span>
+      </div>
+      <p style="color: #64748B; font-size: 12px; margin-bottom: 0;">This code expires in 5 minutes. Never share this code with anyone. If you did not request this, ignore this email.</p>
+    </div>
+  `;
+  return { subject: `BudGi Verification Code: ${otp}`, html };
 }
 
 module.exports = {
   sendEmail,
   verificationEmail,
   passwordResetEmail,
+  otpEmail,
 };

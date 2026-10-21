@@ -26,7 +26,7 @@ export default function DownloadModal({ isOpen, onClose }) {
   const handleDownload = () => {
     setDownloadStarted(true);
     const link = document.createElement('a');
-    link.href = '/BudGi.apk';
+    link.href = APK_DOWNLOAD_URL;
     link.download = 'BudGi.apk';
     document.body.appendChild(link);
     link.click();
@@ -104,6 +104,23 @@ export default function DownloadModal({ isOpen, onClose }) {
                   <span>Download started! Check your device notifications to install.</span>
                 </motion.div>
               )}
+
+              {/* Install Tips */}
+              <div
+                style={{
+                  fontSize: '11.5px',
+                  color: 'var(--text-muted, #94a3b8)',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.07)',
+                  borderRadius: '8px',
+                  padding: '9px 12px',
+                  lineHeight: 1.5,
+                  marginTop: '10px',
+                }}
+              >
+                <span style={{ fontWeight: 600, color: 'var(--text-secondary, #cbd5e1)' }}>Installation Tip:</span>{' '}
+                If prompted, toggle <strong>Allow from this source</strong> in browser settings. If updating from a USB debug or developer build, uninstall the older build first.
+              </div>
 
               {/* Secondary Options */}
               <div className="download-secondary-row">

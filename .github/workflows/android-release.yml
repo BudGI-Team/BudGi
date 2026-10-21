@@ -39,6 +39,10 @@ jobs:
 
       - name: Build Signed Release APK
         working-directory: android-app
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'BudGiKeystorePassword2026!' }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'budgi' }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'BudGiKeystorePassword2026!' }}
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Prepare Release APK Artifacts

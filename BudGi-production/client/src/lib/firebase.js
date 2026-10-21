@@ -5,7 +5,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyAUlLYW2rmOxH1fAF3VTDXC9TysC5ywbto',
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'budgi-512209.firebaseapp.com',
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'budgi-512209',
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'budgi-512209.firebasestorage.app',
@@ -13,7 +13,7 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:257509947874:web:budgi',
 };
 
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-const auth = getAuth(app);
+const app = getApps().length > 0 ? getApp() : (firebaseConfig.apiKey ? initializeApp(firebaseConfig) : null);
+const auth = app ? getAuth(app) : null;
 
 export { auth, RecaptchaVerifier, signInWithPhoneNumber };

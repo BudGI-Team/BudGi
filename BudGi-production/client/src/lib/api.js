@@ -34,33 +34,102 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Global response handler — normalises errors into { userMessage }
+// Global response handler with queued token refresh
 let lastRateLimitToast = 0;
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach(({ resolve, reject }) => {
+    if (error) reject(error);
+    else resolve(token);
+  });
+  failedQueue = [];
+};
+
 api.interceptors.response.use(
   (res) => res,
-  (err) => {
+  async (err) => {
+    const originalRequest = err.config;
     const status = err.response?.status;
     const envelope = err.response?.data;
     const message = envelope?.errors?.[0]?.message || envelope?.message || err.message || 'Something went wrong';
 
-    if (status === 401) {
-      const url = err.config?.url || '';
+    if (status === 401 && originalRequest && !originalRequest._retry) {
+      const url = originalRequest.url || '';
       const isAuthEndpoint =
         url.includes('/auth/login') ||
         url.includes('/auth/register') ||
+        url.includes('/auth/refresh') ||
+        url.includes('/auth/phone/login-') ||
+        url.includes('/auth/phone/register-') ||
         url.includes('/auth/forgot-password') ||
         url.includes('/auth/reset-password') ||
         url.includes('/auth/check-username');
 
-      if (!isAuthEndpoint) {
+      if (isAuthEndpoint) {
+        return Promise.reject({ ...err, userMessage: message });
+      }
+
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((newToken) => {
+            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+            return api(originalRequest);
+          })
+          .catch((refreshErr) => Promise.reject(refreshErr));
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        const storedRefresh = localStorage.getItem('budgi_refresh_token');
+        if (!storedRefresh) {
+          throw new Error('No refresh token available');
+        }
+
+        // Direct axios post to avoid recursive 401 interceptor
+        const res = await axios.post(`${api.defaults.baseURL}/api/v1/auth/refresh`, {
+          refreshToken: storedRefresh,
+          platform: 'web',
+        });
+
+        const data = res.data?.data || res.data;
+        const newToken = data.token;
+        const newRefreshToken = data.refreshToken;
+        const user = data.user;
+
+        if (newToken) {
+          useStore.getState().setAuth(user || useStore.getState().user, newToken);
+          if (newRefreshToken) {
+            localStorage.setItem('budgi_refresh_token', newRefreshToken);
+          }
+          processQueue(null, newToken);
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return api(originalRequest);
+        } else {
+          throw new Error('Token refresh failed to return access token');
+        }
+      } catch (refreshErr) {
+        processQueue(refreshErr, null);
+        useStore.getState().logout();
+        localStorage.removeItem('budgi_refresh_token');
         localStorage.removeItem('budgi_token');
         localStorage.removeItem('budgi_user');
         localStorage.removeItem('budgi-store');
         if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
           window.location.href = '/login';
         }
+        return Promise.reject({ ...err, userMessage: 'Session expired. Please sign in again.' });
+      } finally {
+        isRefreshing = false;
       }
+    }
 
+    if (status === 401) {
       return Promise.reject({ ...err, userMessage: message });
     }
 
@@ -85,18 +154,21 @@ api.interceptors.response.use(
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const authApi = {
   register: (data) => api.post('/api/v1/auth/register', data).then((r) => r.data),
-  login: (data) => api.post('/api/v1/auth/login', data).then((r) => r.data),
-  googleLogin: (idToken) => api.post('/api/v1/auth/google', { idToken }).then((r) => r.data),
+  login: (data) => api.post('/api/v1/auth/login', { ...data, platform: 'web' }).then((r) => r.data),
+  googleLogin: (idToken) => api.post('/api/v1/auth/google', { idToken, platform: 'web' }).then((r) => r.data),
   phoneLoginRequest: (phone) => api.post('/api/v1/auth/phone/login-request', { phone }).then((r) => r.data),
-  phoneLoginVerify: (phone, otp) => api.post('/api/v1/auth/phone/login-verify', { phone, otp }).then((r) => r.data),
-  firebasePhoneLogin: (idToken) => api.post('/api/v1/auth/firebase/phone-login', { idToken }).then((r) => r.data),
-  firebasePhoneRegister: (data) => api.post('/api/v1/auth/firebase/phone-register', data).then((r) => r.data),
+  phoneLoginVerify: (phone, otp) => api.post('/api/v1/auth/phone/login-verify', { phone, otp, platform: 'web' }).then((r) => r.data),
+  firebasePhoneLogin: (idToken) => api.post('/api/v1/auth/firebase/phone-login', { idToken, platform: 'web' }).then((r) => r.data),
+  firebasePhoneRegister: (data) => api.post('/api/v1/auth/firebase/phone-register', { ...data, platform: 'web' }).then((r) => r.data),
   phoneRegisterRequest: (data) => api.post('/api/v1/auth/phone/register-request', data).then((r) => r.data),
-  phoneRegisterVerify: (data) => api.post('/api/v1/auth/phone/register-verify', data).then((r) => r.data),
+  phoneRegisterVerify: (data) => api.post('/api/v1/auth/phone/register-verify', { ...data, platform: 'web' }).then((r) => r.data),
   sendPhoneOtp: (phone, preAuthToken) => api.post('/api/v1/auth/phone/send-otp', { phone, preAuthToken }).then((r) => r.data),
-  verifyPhoneOtp: (phone, otp, preAuthToken) => api.post('/api/v1/auth/phone/verify-otp', { phone, otp, preAuthToken }).then((r) => r.data),
-  refresh: (refreshToken) => api.post('/api/v1/auth/refresh', { refreshToken }).then((r) => r.data),
-  logout: () => api.post('/api/v1/auth/logout').then((r) => r.data),
+  verifyPhoneOtp: (phone, otp, preAuthToken) => api.post('/api/v1/auth/phone/verify-otp', { phone, otp, preAuthToken, platform: 'web' }).then((r) => r.data),
+  refresh: (refreshToken) => api.post('/api/v1/auth/refresh', { refreshToken, platform: 'web' }).then((r) => r.data),
+  logout: () => {
+    const refreshToken = typeof localStorage !== 'undefined' ? localStorage.getItem('budgi_refresh_token') : null;
+    return api.post('/api/v1/auth/logout', { refreshToken }).then((r) => r.data);
+  },
   me: () => api.get('/api/v1/auth/me').then((r) => r.data),
   checkUsername: (username) => api.get('/api/v1/auth/check-username', { params: { username } }).then((r) => r.data),
   updateProfile: (data) => api.put('/api/v1/auth/profile', data).then((r) => r.data),

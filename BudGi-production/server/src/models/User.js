@@ -47,9 +47,23 @@ const userSchema = new mongoose.Schema(
     passwordResetToken: { type: String, default: null, select: false },
     passwordResetExpiry: { type: Date, default: null, select: false },
 
-    // ── Mobile integration ────────────────────────────────────────────────────
+    // ── Account Security & Lockout ──────────────────────────────────────────
+    loginAttempts: { type: Number, default: 0 },
+    lockUntil: { type: Date, default: null },
+
+    // ── Mobile & Web Multi-Device Sessions ────────────────────────────────────
     refreshToken: { type: String, default: null, select: false },
     refreshTokenExpiry: { type: Date, default: null, select: false },
+    sessions: [
+      {
+        tokenHash: { type: String, required: true },
+        deviceId: { type: String, default: 'unknown' },
+        platform: { type: String, enum: ['android', 'ios', 'web'], default: 'web' },
+        userAgent: { type: String, default: '' },
+        createdAt: { type: Date, default: Date.now },
+        expiresAt: { type: Date, required: true },
+      },
+    ],
 
     // FCM / push notification device tokens
     deviceTokens: [
@@ -67,7 +81,7 @@ const userSchema = new mongoose.Schema(
 );
 
 // Compound indexes for performance
-// Compound indexes for performance (email index already on field definition)
+userSchema.index({ 'sessions.tokenHash': 1 });
 userSchema.index({ passwordResetToken: 1 });
 userSchema.index({ emailVerifyToken: 1 });
 
@@ -76,6 +90,9 @@ userSchema.methods.toSafeJSON = function () {
   delete obj.password;
   delete obj.refreshToken;
   delete obj.refreshTokenExpiry;
+  delete obj.sessions;
+  delete obj.loginAttempts;
+  delete obj.lockUntil;
   delete obj.passwordResetToken;
   delete obj.passwordResetExpiry;
   delete obj.emailVerifyToken;

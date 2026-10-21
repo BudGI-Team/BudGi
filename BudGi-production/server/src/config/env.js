@@ -78,8 +78,9 @@ const config = {
   FIREBASE_SERVICE_ACCOUNT_PATH: optional('FIREBASE_SERVICE_ACCOUNT_PATH', ''),
 
   // ── Dual-Anchor Identity & FinTech Auth ───────────────────────────────────
-  GOOGLE_CLIENT_ID: optional('GOOGLE_CLIENT_ID', '257509947874-sbr1d7ev97clthmsh5jdc3ajtaqc3q8b.apps.googleusercontent.com'),
-  OTP_PEPPER: optional('OTP_PEPPER', 'BudGiFinTechSecureOtpPepper2026!'),
+  GOOGLE_CLIENT_ID: optional('GOOGLE_CLIENT_ID', ''),
+  OTP_PEPPER: optional('OTP_PEPPER', 'BudGiFinTechDevPepperSecret123456789!'),
+  FIREBASE_API_KEY: optional('FIREBASE_API_KEY', ''),
   TEXTBEE_API_KEY: optional('TEXTBEE_API_KEY', ''),
   TEXTBEE_DEVICE_ID: optional('TEXTBEE_DEVICE_ID', ''),
 };

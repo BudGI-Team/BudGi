@@ -23,6 +23,11 @@ const useStore = create(
         set({ user });
       },
       logout: () => {
+        try {
+          if (typeof localStorage !== 'undefined') {
+            localStorage.removeItem('budgi_refresh_token');
+          }
+        } catch (_) {}
         set({ user: null, token: null });
       },
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),

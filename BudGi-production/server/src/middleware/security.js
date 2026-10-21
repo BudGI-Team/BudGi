@@ -40,8 +40,13 @@ function corsOriginHandler(origin, callback) {
     return callback(null, true);
   }
 
-  // Allow any Vercel domain or budgiweb.app custom domain
-  if (/^https:\/\/[a-zA-Z0-9_.-]+\.vercel\.app$/.test(cleanOrigin) || cleanOrigin.endsWith('budgiweb.app')) {
+  // Allow authorized BudGi domains (exact budgiweb.app, *.budgiweb.app, or budgi vercel deployments)
+  const isBudgiDomain =
+    cleanOrigin === 'https://budgiweb.app' ||
+    cleanOrigin.endsWith('.budgiweb.app') ||
+    /^https:\/\/budgi([a-zA-Z0-9_-]*)\.vercel\.app$/.test(cleanOrigin);
+
+  if (isBudgiDomain) {
     return callback(null, true);
   }
 

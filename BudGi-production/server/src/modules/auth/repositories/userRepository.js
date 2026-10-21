@@ -26,10 +26,15 @@ async function updateById(id, updates) {
 }
 
 /**
- * Find user by refresh token. Must select hidden fields explicitly.
+ * Find user by refresh token (supporting multi-device sessions and legacy single-token).
  */
-async function findByRefreshToken(token) {
-  return User.findOne({ refreshToken: token }).select('+refreshToken +refreshTokenExpiry');
+async function findByRefreshToken(tokenHash) {
+  return User.findOne({
+    $or: [
+      { 'sessions.tokenHash': tokenHash },
+      { refreshToken: tokenHash },
+    ],
+  }).select('+refreshToken +refreshTokenExpiry +sessions');
 }
 
 /**

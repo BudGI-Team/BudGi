@@ -19,6 +19,12 @@ function authMiddleware(req, res, next) {
   const token = authHeader.slice(7);
   try {
     const payload = jwt.verify(token, env.JWT_SECRET);
+
+    // Block pre-auth tokens from accessing protected routes
+    if (payload.stage === 'PHONE_VERIFICATION_REQUIRED') {
+      return unauthorized(res, 'Phone verification required. Please complete verification first.');
+    }
+
     req.user = { id: payload.id, email: payload.email };
     next();
   } catch (err) {

@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, Cpu, Shield, TrendingUp, AlertCircle } from '../lib/icons';
+import { ArrowRight, Cpu, Shield, TrendingUp, AlertCircle, Mail, Lock, Smartphone } from '../lib/icons';
 import BrandLogo from '../components/ui/BrandLogo';
+import PhoneVerificationModal from '../components/auth/PhoneVerificationModal';
 import { authApi } from '../lib/api';
 import useStore from '../store/useStore';
 import toast from 'react-hot-toast';
@@ -12,14 +13,22 @@ export default function Login() {
   const navigate = useNavigate();
   const { setAuth } = useStore();
   
+  const [loginMode, setLoginMode] = useState('phone'); // 'phone' | 'email'
   const [step, setStep] = useState('phone'); // 'phone' | 'otp'
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [digits, setDigits] = useState(['', '', '', '', '', '']);
   const [countdown, setCountdown] = useState(60);
   const [canResend, setCanResend] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [verificationModal, setVerificationModal] = useState({
+    isOpen: false,
+    preAuthToken: null,
+    user: null,
+  });
 
   const googleBtnRef = useRef(null);
   const digitRefs = useRef([]);
@@ -41,13 +50,24 @@ export default function Login() {
     return () => clearInterval(timer);
   }, [step, countdown]);
 
-  // Seamless Google Sign-In — Direct access without phone interruptions
+  // Seamless Google Sign-In with Dual-Anchor phone verification support
   const handleGoogleResponse = useCallback(async (response) => {
     if (!response.credential) return;
     setErrorMessage('');
     try {
       const res = await authApi.googleLogin(response.credential);
       const data = res?.data || res;
+
+      if (data?.requiresPhoneVerification && data?.preAuthToken) {
+        setVerificationModal({
+          isOpen: true,
+          preAuthToken: data.preAuthToken,
+          user: data.user,
+        });
+        toast('Google verified. Please verify your mobile number to complete authentication.', { icon: '📱' });
+        return;
+      }
+
       if (data?.token && data?.user) {
         setAuth(data.user, data.token);
         if (data.refreshToken) {
@@ -61,6 +81,60 @@ export default function Login() {
       toast.error(err.userMessage || 'Google Sign-In failed');
     }
   }, [navigate, setAuth]);
+
+  const handleEmailLogin = async (e) => {
+    e?.preventDefault();
+    setErrorMessage('');
+    if (!email || !password) {
+      setErrorMessage('Please enter both email and password.');
+      return;
+    }
+
+    setIsSending(true);
+    try {
+      const res = await authApi.login({ email, password });
+      const data = res?.data || res;
+
+      if (data?.requiresPhoneVerification && data?.preAuthToken) {
+        setVerificationModal({
+          isOpen: true,
+          preAuthToken: data.preAuthToken,
+          user: data.user,
+        });
+        toast('Dual-Anchor Security: Please verify your phone number.', { icon: '🛡️' });
+        return;
+      }
+
+      const { token, refreshToken, user: authUser } = data;
+      if (!token || !authUser) {
+        throw new Error('Authentication succeeded but session token is missing.');
+      }
+
+      setAuth(authUser, token);
+      if (refreshToken) {
+        localStorage.setItem('budgi_refresh_token', refreshToken);
+      }
+
+      toast.success(`Welcome back, ${authUser.name?.split(' ')[0] || 'there'}!`);
+      navigate('/app/dashboard');
+    } catch (err) {
+      const msg = err.userMessage || err.message || 'Login failed. Please check your credentials.';
+      setErrorMessage(msg);
+      toast.error(msg);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleModalVerified = ({ token, refreshToken, user: authUser }) => {
+    setVerificationModal({ isOpen: false, preAuthToken: null, user: null });
+    setAuth(authUser, token);
+    if (refreshToken) {
+      localStorage.setItem('budgi_refresh_token', refreshToken);
+    }
+    toast.success(`Welcome back, ${authUser.name?.split(' ')[0] || 'there'}!`);
+    navigate('/app/dashboard');
+  };
 
   useEffect(() => {
     const clientId =
@@ -290,46 +364,165 @@ export default function Login() {
 
               <div className="auth-divider">
                 <div className="auth-divider-line" />
-                <span>or sign in with mobile number</span>
+                <span>or choose sign in method</span>
                 <div className="auth-divider-line" />
               </div>
 
-              <form className="auth-form" onSubmit={handleSendOtp}>
-                <div className="auth-field">
-                  <label className="auth-label">Registered Mobile Number</label>
-                  <div className="auth-phone-row">
-                    <span className="auth-phone-prefix">+91</span>
-                    <input
-                      className="auth-phone-input"
-                      type="tel"
-                      placeholder="98765 43210"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                      autoFocus
-                      required
-                    />
-                  </div>
-                </div>
-
-                <motion.button
-                  type="submit"
-                  className={`auth-submit ${isSending ? 'is-loading' : ''}`}
-                  disabled={isSending || phone.length < 10}
-                  whileTap={!isSending && phone.length >= 10 ? { scale: 0.985 } : {}}
+              {/* Login Method Tabs */}
+              <div
+                style={{
+                  display: 'flex',
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '12px',
+                  padding: '4px',
+                  marginBottom: '20px',
+                  gap: '4px',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => { setLoginMode('phone'); setErrorMessage(''); }}
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    padding: '9px 12px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: loginMode === 'phone' ? 'var(--accent, #7C6AF5)' : 'transparent',
+                    color: loginMode === 'phone' ? '#fff' : 'var(--text-secondary)',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
                 >
-                  {isSending ? (
-                    <div className="auth-btn-loader-wrap">
-                      <span className="auth-spinner-ring" />
-                      <span className="auth-btn-loader-text">Sending verification code...</span>
+                  <Smartphone size={15} />
+                  <span>Phone OTP</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setLoginMode('email'); setErrorMessage(''); }}
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    padding: '9px 12px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: loginMode === 'email' ? 'var(--accent, #7C6AF5)' : 'transparent',
+                    color: loginMode === 'email' ? '#fff' : 'var(--text-secondary)',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <Mail size={15} />
+                  <span>Email & Password</span>
+                </button>
+              </div>
+
+              {loginMode === 'phone' ? (
+                <form className="auth-form" onSubmit={handleSendOtp}>
+                  <div className="auth-field">
+                    <label className="auth-label">Registered Mobile Number</label>
+                    <div className="auth-phone-row">
+                      <span className="auth-phone-prefix">+91</span>
+                      <input
+                        className="auth-phone-input"
+                        type="tel"
+                        placeholder="98765 43210"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                        autoFocus
+                        required
+                      />
                     </div>
-                  ) : (
-                    <>
-                      <span>Continue with Phone</span>
-                      <ArrowRight size={16} />
-                    </>
-                  )}
-                </motion.button>
-              </form>
+                  </div>
+
+                  <motion.button
+                    type="submit"
+                    className={`auth-submit ${isSending ? 'is-loading' : ''}`}
+                    disabled={isSending || phone.length < 10}
+                    whileTap={!isSending && phone.length >= 10 ? { scale: 0.985 } : {}}
+                  >
+                    {isSending ? (
+                      <div className="auth-btn-loader-wrap">
+                        <span className="auth-spinner-ring" />
+                        <span className="auth-btn-loader-text">Sending verification code...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <span>Continue with Phone</span>
+                        <ArrowRight size={16} />
+                      </>
+                    )}
+                  </motion.button>
+                </form>
+              ) : (
+                <form className="auth-form" onSubmit={handleEmailLogin}>
+                  <div className="auth-field">
+                    <label className="auth-label">Email Address</label>
+                    <div className="auth-input-wrap">
+                      <input
+                        className="auth-input"
+                        type="email"
+                        placeholder="you@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        autoFocus
+                        required
+                      />
+                      <Mail size={16} className="auth-input-icon" />
+                    </div>
+                  </div>
+
+                  <div className="auth-field">
+                    <div className="auth-row">
+                      <label className="auth-label" style={{ marginBottom: 0 }}>Password</label>
+                      <Link to="/forgot-password" className="auth-forgot">
+                        Forgot password?
+                      </Link>
+                    </div>
+                    <div className="auth-input-wrap">
+                      <input
+                        className="auth-input"
+                        type="password"
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                      />
+                      <Lock size={16} className="auth-input-icon" />
+                    </div>
+                  </div>
+
+                  <motion.button
+                    type="submit"
+                    className={`auth-submit ${isSending ? 'is-loading' : ''}`}
+                    disabled={isSending || !email || !password}
+                    whileTap={!isSending && email && password ? { scale: 0.985 } : {}}
+                  >
+                    {isSending ? (
+                      <div className="auth-btn-loader-wrap">
+                        <span className="auth-spinner-ring" />
+                        <span className="auth-btn-loader-text">Signing in...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <span>Sign In with Email</span>
+                        <ArrowRight size={16} />
+                      </>
+                    )}
+                  </motion.button>
+                </form>
+              )}
             </>
           ) : (
             <div>
@@ -416,6 +609,14 @@ export default function Login() {
           </p>
         </motion.div>
       </div>
+
+      <PhoneVerificationModal
+        isOpen={verificationModal.isOpen}
+        onClose={() => setVerificationModal({ isOpen: false, preAuthToken: null, user: null })}
+        preAuthToken={verificationModal.preAuthToken}
+        _user={verificationModal.user}
+        onVerified={handleModalVerified}
+      />
     </div>
   );
 }

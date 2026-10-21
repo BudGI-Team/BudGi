@@ -6,18 +6,24 @@
 const authService = require('../services/authService');
 const { ok, created, asyncHandler } = require('../../../utils/response');
 
+const getClientMeta = (req) => {
+  const platform = req.body?.platform || (req.headers['user-agent']?.toLowerCase().includes('okhttp') ? 'android' : 'web');
+  const userAgent = req.headers['user-agent'] || '';
+  return { platform, userAgent };
+};
+
 const register = asyncHandler(async (req, res) => {
   const result = await authService.register(req.body);
   return created(res, result, 'Account created');
 });
 
 const login = asyncHandler(async (req, res) => {
-  const result = await authService.login(req.body);
+  const result = await authService.login({ ...req.body, ...getClientMeta(req) });
   return ok(res, result, 'Login successful');
 });
 
 const googleLogin = asyncHandler(async (req, res) => {
-  const result = await authService.googleLogin(req.body.idToken || req.body.token);
+  const result = await authService.googleLogin(req.body.idToken || req.body.token, getClientMeta(req));
   return ok(res, result, 'Google login successful');
 });
 
@@ -36,6 +42,7 @@ const verifyPhoneOtp = asyncHandler(async (req, res) => {
     preAuthToken,
     phone: req.body.phone,
     otp: req.body.otp,
+    ...getClientMeta(req),
   });
   return ok(res, result, 'Phone verified and authenticated successfully');
 });
@@ -46,7 +53,11 @@ const phoneLoginRequest = asyncHandler(async (req, res) => {
 });
 
 const phoneLoginVerify = asyncHandler(async (req, res) => {
-  const result = await authService.phoneLoginVerify({ phone: req.body.phone, otp: req.body.otp });
+  const result = await authService.phoneLoginVerify({
+    phone: req.body.phone,
+    otp: req.body.otp,
+    ...getClientMeta(req),
+  });
   return ok(res, result, 'Phone verified and authenticated successfully');
 });
 
@@ -65,12 +76,16 @@ const phoneRegisterVerify = asyncHandler(async (req, res) => {
     otp: req.body.otp,
     name: req.body.name,
     username: req.body.username,
+    ...getClientMeta(req),
   });
   return ok(res, result, 'Phone registered and account created successfully');
 });
 
 const firebasePhoneLogin = asyncHandler(async (req, res) => {
-  const result = await authService.firebasePhoneLogin({ idToken: req.body.idToken });
+  const result = await authService.firebasePhoneLogin({
+    idToken: req.body.idToken,
+    ...getClientMeta(req),
+  });
   return ok(res, result, 'Firebase phone login successful');
 });
 
@@ -79,19 +94,20 @@ const firebasePhoneRegister = asyncHandler(async (req, res) => {
     idToken: req.body.idToken,
     name: req.body.name,
     username: req.body.username,
+    ...getClientMeta(req),
   });
   return ok(res, result, 'Firebase phone registration successful');
 });
 
 // POST /api/auth/refresh — exchange refresh token for new token pair
 const refresh = asyncHandler(async (req, res) => {
-  const result = await authService.refreshAccessToken(req.body.refreshToken);
+  const result = await authService.refreshAccessToken(req.body.refreshToken, getClientMeta(req));
   return ok(res, result, 'Token refreshed');
 });
 
 // POST /api/auth/logout — invalidate refresh token
 const logout = asyncHandler(async (req, res) => {
-  await authService.logout(req.user.id);
+  await authService.logout(req.user.id, req.body?.refreshToken);
   return ok(res, {}, 'Logged out');
 });
 

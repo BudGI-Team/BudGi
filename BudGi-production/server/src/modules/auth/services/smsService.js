@@ -19,9 +19,14 @@ async function sendSms({ phone, message }) {
     return { success: false, warning: 'TEXTBEE_NOT_CONFIGURED' };
   }
 
-  // Format cleanly with +91
-  const cleanDigits = phone.replace(/\D/g, '').slice(-10);
-  const formattedPhone = `+91${cleanDigits}`;
+  // Format cleanly: preserve E.164 with +, default to +91 if 10-digit national number
+  let formattedPhone = (phone || '').toString().trim();
+  if (formattedPhone.startsWith('+')) {
+    formattedPhone = `+${formattedPhone.replace(/\D/g, '')}`;
+  } else {
+    const digits = formattedPhone.replace(/\D/g, '');
+    formattedPhone = digits.length === 10 ? `+91${digits}` : `+${digits}`;
+  }
 
   try {
     const controller = new AbortController();

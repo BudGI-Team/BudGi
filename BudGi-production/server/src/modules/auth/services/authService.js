@@ -41,11 +41,39 @@ function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-async function saveRefreshToken(userId, token) {
-  await userRepo.updateById(userId, {
-    refreshToken: hashToken(token),
-    refreshTokenExpiry: new Date(Date.now() + REFRESH_TOKEN_TTL),
+const logger = require('../../../utils/logger');
+
+async function saveRefreshToken(userId, token, { platform = 'web', deviceId = 'unknown', userAgent = '' } = {}) {
+  const tokenHash = hashToken(token);
+  const expiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL);
+  const MAX_SESSIONS = 5;
+
+  const user = await User.findById(userId).select('+sessions +refreshToken +refreshTokenExpiry');
+  if (!user) return;
+
+  // Filter out expired sessions
+  let sessions = (user.sessions || []).filter((s) => s.expiresAt && new Date() < s.expiresAt);
+
+  // If at capacity, remove oldest
+  if (sessions.length >= MAX_SESSIONS) {
+    sessions.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    sessions.shift();
+  }
+
+  sessions.push({
+    tokenHash,
+    deviceId: deviceId || 'unknown',
+    platform: ['android', 'ios', 'web'].includes(platform) ? platform : 'web',
+    userAgent: (userAgent || '').slice(0, 200),
+    createdAt: new Date(),
+    expiresAt,
   });
+
+  user.sessions = sessions;
+  user.refreshToken = tokenHash;
+  user.refreshTokenExpiry = expiresAt;
+
+  await user.save();
 }
 
 function buildTokenPair(user) {
@@ -149,6 +177,7 @@ async function register({ name, email, password, username, dateOfBirth, avatar, 
     name: name.trim(),
     email: email.toLowerCase().trim(),
     username: cleanUsername,
+    authProvider: 'local',
     dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
     avatar: avatar || 'zen_saver',
     password: hashed,
@@ -157,7 +186,7 @@ async function register({ name, email, password, username, dateOfBirth, avatar, 
     isEmailVerified: false,
     onboarded: true,
     streak: { count: 1, lastActiveDate: new Date() },
-    emailVerifyToken: verifyToken,
+    emailVerifyToken: hashToken(verifyToken),
     emailVerifyExpiry: new Date(Date.now() + VERIFY_TOKEN_TTL),
   });
 
@@ -165,7 +194,7 @@ async function register({ name, email, password, username, dateOfBirth, avatar, 
   const verifyUrl = `${env.CLIENT_ORIGIN}/verify-email?token=${verifyToken}`;
   const { subject, html } = emailSvc.verificationEmail(user.name, verifyUrl);
   emailSvc.sendEmail({ to: user.email, subject, html }).catch((err) => {
-    console.error('[Auth] Failed to send verification email:', err.message);
+    logger.warn('[Auth] Failed to send verification email', { error: err.message });
   });
 
   // Dual-Anchor requirement: User must verify phone number before receiving access tokens!
@@ -188,7 +217,11 @@ async function verifyEmail(token) {
     throw Object.assign(new Error('Verification token is required'), { statusCode: 400 });
   }
 
-  const user = await userRepo.findByEmailVerifyToken(token);
+  const hashed = hashToken(token);
+  let user = await userRepo.findByEmailVerifyToken(hashed);
+  if (!user) {
+    user = await userRepo.findByEmailVerifyToken(token);
+  }
   if (!user) {
     throw Object.assign(new Error('Invalid or expired verification link'), { statusCode: 400 });
   }
@@ -228,14 +261,14 @@ async function resendVerification(email) {
 
   const verifyToken = generateHexToken();
   await userRepo.updateById(user._id, {
-    emailVerifyToken: verifyToken,
+    emailVerifyToken: hashToken(verifyToken),
     emailVerifyExpiry: new Date(Date.now() + VERIFY_TOKEN_TTL),
   });
 
   const verifyUrl = `${env.CLIENT_ORIGIN}/verify-email?token=${verifyToken}`;
   const { subject, html } = emailSvc.verificationEmail(user.name, verifyUrl);
   emailSvc.sendEmail({ to: user.email, subject, html }).catch((err) => {
-    console.error('[Auth] Failed to resend verification email:', err.message);
+    logger.warn('[Auth] Failed to resend verification email', { error: err.message });
   });
 
   return { message: 'If that email is registered, a verification link has been sent.' };
@@ -245,7 +278,7 @@ async function resendVerification(email) {
 // Login
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function login({ email, password }) {
+async function login({ email, password, platform = 'web', userAgent = '' }) {
   if (!email || !password) {
     throw Object.assign(new Error('Email and password are required'), { statusCode: 400 });
   }
@@ -253,12 +286,34 @@ async function login({ email, password }) {
   const cleanEmail = email.toLowerCase().trim();
   const user = await userRepo.findByEmail(cleanEmail);
   if (!user) {
-    throw Object.assign(new Error('No account found with this email. Please check your email or create an account.'), { statusCode: 401 });
+    throw Object.assign(new Error('Invalid email or password'), { statusCode: 401 });
+  }
+
+  const userDoc = await User.findById(user._id);
+  if (userDoc?.lockUntil && new Date() < userDoc.lockUntil) {
+    const mins = Math.max(1, Math.ceil((userDoc.lockUntil - Date.now()) / 60000));
+    throw Object.assign(
+      new Error(`Account temporarily locked due to repeated failed attempts. Please try again in ${mins} minute${mins > 1 ? 's' : ''}.`),
+      { statusCode: 429 }
+    );
   }
 
   const match = await bcrypt.compare(password, user.password);
   if (!match) {
-    throw Object.assign(new Error('Incorrect password. Please verify and try again.'), { statusCode: 401 });
+    if (userDoc) {
+      userDoc.loginAttempts = (userDoc.loginAttempts || 0) + 1;
+      if (userDoc.loginAttempts >= 5) {
+        userDoc.lockUntil = new Date(Date.now() + 30 * 60 * 1000); // 30 min lock
+      }
+      await userDoc.save();
+    }
+    throw Object.assign(new Error('Invalid email or password'), { statusCode: 401 });
+  }
+
+  if (userDoc && (userDoc.loginAttempts > 0 || userDoc.lockUntil)) {
+    userDoc.loginAttempts = 0;
+    userDoc.lockUntil = null;
+    await userDoc.save();
   }
 
   // Dual-Anchor requirement: Check if user has completed phone OTP verification
@@ -273,7 +328,7 @@ async function login({ email, password }) {
   }
 
   const { accessToken, refreshToken } = buildTokenPair(user);
-  await saveRefreshToken(user._id, refreshToken);
+  await saveRefreshToken(user._id, refreshToken, { platform, userAgent });
 
   return { token: accessToken, refreshToken, user: user.toSafeJSON() };
 }
@@ -282,7 +337,7 @@ async function login({ email, password }) {
 // Google Sign-In — Verify ID token & authenticate/register user
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function googleLogin(idToken) {
+async function googleLogin(idToken, { platform = 'web', userAgent = '' } = {}) {
   if (!idToken) {
     throw Object.assign(new Error('Google ID token is required'), { statusCode: 400 });
   }
@@ -337,6 +392,7 @@ async function googleLogin(idToken) {
       name: (name || cleanEmail.split('@')[0]).trim(),
       email: cleanEmail,
       username: googleUsername,
+      authProvider: 'google',
       password: hashed,
       profileImage: picture || null,
       isEmailVerified: true,
@@ -347,8 +403,19 @@ async function googleLogin(idToken) {
     await userRepo.updateById(user._id, { isEmailVerified: true });
   }
 
+  // Dual-Anchor requirement: User must verify phone number before receiving access tokens
+  if (!user.isPhoneVerified) {
+    const preAuthToken = issuePreAuthToken(user);
+    return {
+      requiresPhoneVerification: true,
+      status: 'PHONE_VERIFICATION_REQUIRED',
+      preAuthToken,
+      user: user.toSafeJSON ? user.toSafeJSON() : user,
+    };
+  }
+
   const { accessToken, refreshToken } = buildTokenPair(user);
-  await saveRefreshToken(user._id, refreshToken);
+  await saveRefreshToken(user._id, refreshToken, { platform, userAgent });
 
   return { status: 'AUTHENTICATED', token: accessToken, refreshToken, user: user.toSafeJSON ? user.toSafeJSON() : user };
 }
@@ -393,14 +460,9 @@ async function sendPhoneOtp({ preAuthToken, phone }) {
   // Generate cryptographically secure 6-digit OTP
   const otp = crypto.randomInt(100000, 999999).toString();
 
-  // Dev & audit logger: Loud console banner so verification is effortlessly testable locally
-  console.log('\n┌─────────────────────────────────────────────────────────────┐');
-  console.log('│ 🛡️  BUDGI DUAL-ANCHOR SECURITY ENGINE — PHONE OTP ISSUED     │');
-  console.log(`│ Target Mobile: ${cleanPhone.padEnd(44)} │`);
-  console.log(`│ User Account : ${(user.email || '').padEnd(44)} │`);
-  console.log(`│ SECURITY OTP : >>> ${otp} <<<                            │`);
-  console.log('│ Storage Mode : Zero-Knowledge HMAC-SHA256 (5m TTL)          │');
-  console.log('└─────────────────────────────────────────────────────────────┘\n');
+  if (env.isDev) {
+    logger.debug(`[Auth] Dual-anchor OTP issued for ${cleanPhone}: ****${otp.slice(-2)}`);
+  }
 
   // Zero-Knowledge HMAC-SHA256 hashed storage
   const otpHash = crypto
@@ -419,42 +481,52 @@ async function sendPhoneOtp({ preAuthToken, phone }) {
     expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5-minute TTL
   });
 
-  // Dispatch real cellular SMS via TextBee Android Gateway
+  // 1. Dispatch real cellular SMS via TextBee Android Gateway
+  let smsDelivered = false;
   try {
-    await smsService.sendOtpSms(cleanPhone, otp);
+    const smsResult = await smsService.sendOtpSms(cleanPhone, otp);
+    smsDelivered = smsResult?.success === true;
   } catch (smsErr) {
-    console.error('[Auth] TextBee SMS dispatch error on dual-anchor:', smsErr.message);
+    logger.warn('[Auth] TextBee SMS dispatch failed on dual-anchor', { phone: cleanPhone, error: smsErr.message });
   }
 
-  // Send backup OTP to user's verified Google email
-  try {
-    await emailSvc.sendEmail({
-      to: user.email,
-      subject: `BudGi Verification Code: ${otp}`,
-      html: `
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #04040A; color: #FFFFFF; padding: 32px; border-radius: 16px; max-width: 480px; margin: 0 auto; border: 1px solid rgba(255,255,255,0.1);">
-          <h2 style="margin-top: 0; color: #10B981;">BudGi Dual-Anchor Verification</h2>
-          <p style="color: #94A3B8; font-size: 14px;">Use the following 6-digit code to complete verification for <strong>${cleanPhone}</strong>:</p>
-          <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid #10B981; border-radius: 12px; padding: 20px; text-align: center; margin: 24px 0;">
-            <span style="font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #10B981;">${otp}</span>
-          </div>
-          <p style="color: #64748B; font-size: 12px; margin-bottom: 0;">This code expires in 5 minutes. If you did not request this, please ignore this email.</p>
-        </div>
-      `,
-    });
-  } catch (err) {
-    console.warn('[Auth] Failed to send email OTP backup:', err.message);
+  // 2. Send backup OTP to user's registered/Google email
+  let emailDelivered = false;
+  if (user?.email) {
+    try {
+      const { subject, html } = emailSvc.otpEmail(cleanPhone, otp);
+      const emailResult = await emailSvc.sendEmail({
+        to: user.email,
+        subject,
+        html,
+      });
+      emailDelivered = emailResult?.sent === true;
+    } catch (err) {
+      logger.warn('[Auth] Failed to send email OTP backup', { error: err.message });
+    }
   }
+
+  // 3. Fail honestly if BOTH delivery channels failed
+  if (!smsDelivered && !emailDelivered) {
+    throw Object.assign(
+      new Error('Unable to deliver verification code via SMS or email. Please check your network and try again in a moment.'),
+      { statusCode: 502 }
+    );
+  }
+
+  const deliveryMessage = smsDelivered
+    ? `Verification code sent to ${cleanPhone}${emailDelivered ? ` (and email backup to ${user.email})` : ''}`
+    : `SMS gateway unavailable. Verification code sent to your registered email (${user.email}).`;
 
   return {
     success: true,
-    message: `Verification code sent to ${cleanPhone}${user.email ? ` (backup sent to ${user.email})` : ''}`,
+    message: deliveryMessage,
     phone: cleanPhone,
     expiresIn: 300,
   };
 }
 
-async function verifyPhoneOtp({ preAuthToken, phone, otp }) {
+async function verifyPhoneOtp({ preAuthToken, phone, otp, platform = 'web', userAgent = '' }) {
   if (!preAuthToken) {
     throw Object.assign(new Error('Verification session required. Please sign in or register first.'), { statusCode: 401 });
   }
@@ -517,7 +589,7 @@ async function verifyPhoneOtp({ preAuthToken, phone, otp }) {
 
   // Issue full production token pair
   const { accessToken, refreshToken } = buildTokenPair(updatedUser);
-  await saveRefreshToken(updatedUser._id, refreshToken);
+  await saveRefreshToken(updatedUser._id, refreshToken, { platform, userAgent });
 
   const safeUser = { ...updatedUser };
   delete safeUser.password;
@@ -596,33 +668,54 @@ async function phoneLoginRequest({ phone }) {
     action: 'login',
     status: 'active',
     attempts: 0,
-    expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+    expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5-minute TTL
   });
 
-  console.log('\n┌─────────────────────────────────────────────────────────────┐');
-  console.log('│ 🔑  BUDGI PHONE LOGIN OTP ISSUED                            │');
-  console.log(`│ Mobile Target: ${cleanPhone.padEnd(44)} │`);
-  console.log(`│ User Account : ${(user.name || '').padEnd(44)} │`);
-  console.log(`│ SECURITY OTP : >>> ${otp} <<<                            │`);
-  console.log('│ Storage Mode : Zero-Knowledge HMAC-SHA256 (5m TTL)          │');
-  console.log('└─────────────────────────────────────────────────────────────┘\n');
+  if (env.isDev) {
+    logger.debug(`[Auth] Phone login OTP issued for ${cleanPhone}: ****${otp.slice(-2)}`);
+  }
 
   // Dispatch real cellular SMS via TextBee Android Gateway
+  let smsDelivered = false;
   try {
-    await smsService.sendOtpSms(cleanPhone, otp);
+    const smsResult = await smsService.sendOtpSms(cleanPhone, otp);
+    smsDelivered = smsResult?.success === true;
   } catch (smsErr) {
-    console.error('[Auth] TextBee SMS dispatch error on login:', smsErr.message);
+    logger.warn('[Auth] TextBee SMS dispatch failed on phone login', { phone: cleanPhone, error: smsErr.message });
   }
+
+  // Backup: if SMS fails and user has registered email, send OTP via email
+  let emailDelivered = false;
+  if (!smsDelivered && user.email) {
+    try {
+      const { subject, html } = emailSvc.otpEmail(cleanPhone, otp);
+      const emailResult = await emailSvc.sendEmail({ to: user.email, subject, html });
+      emailDelivered = emailResult?.sent === true;
+    } catch (err) {
+      logger.warn('[Auth] Email fallback failed on phone login', { error: err.message });
+    }
+  }
+
+  if (!smsDelivered && !emailDelivered) {
+    throw Object.assign(
+      new Error('Unable to deliver verification code. Please check your mobile number or try again in a moment.'),
+      { statusCode: 502 }
+    );
+  }
+
+  const message = smsDelivered
+    ? `Verification code sent to ${cleanPhone}`
+    : `SMS delivery failed. We sent your verification code to your email (${user.email}).`;
 
   return {
     success: true,
-    message: `Verification code sent to ${cleanPhone}`,
+    message,
     phone: cleanPhone,
     expiresIn: 300,
   };
 }
 
-async function phoneLoginVerify({ phone, otp }) {
+async function phoneLoginVerify({ phone, otp, platform = 'web', userAgent = '' }) {
   const cleanPhone = formatCleanPhone(phone);
   const cleanOtp = (otp || '').toString().trim();
 
@@ -638,6 +731,12 @@ async function phoneLoginVerify({ phone, otp }) {
 
   if (!record) {
     throw Object.assign(new Error('Verification code expired or not found. Please request a new code.'), { statusCode: 400 });
+  }
+
+  if (new Date() > record.expiresAt) {
+    record.status = 'expired';
+    await record.save();
+    throw Object.assign(new Error('Verification code has expired. Please request a new code.'), { statusCode: 400 });
   }
 
   if (record.attempts >= 3) {
@@ -677,7 +776,7 @@ async function phoneLoginVerify({ phone, otp }) {
   await record.save();
 
   const { accessToken, refreshToken } = buildTokenPair(updatedUser);
-  await saveRefreshToken(updatedUser._id, refreshToken);
+  await saveRefreshToken(updatedUser._id, refreshToken, { platform, userAgent });
 
   const safeUser = { ...updatedUser };
   delete safeUser.password;
@@ -757,22 +856,27 @@ async function phoneRegisterRequest({ phone, name, username }) {
       name: name.trim(),
       username: username ? username.trim().toLowerCase().replace(/^@/, '') : undefined,
     },
-    expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+    expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5-minute TTL
   });
 
-  console.log('\n┌─────────────────────────────────────────────────────────────┐');
-  console.log('│ 🔑  BUDGI PHONE REGISTRATION OTP ISSUED                     │');
-  console.log(`│ Mobile Target: ${cleanPhone.padEnd(44)} │`);
-  console.log(`│ Full Name    : ${name.trim().padEnd(44)} │`);
-  console.log(`│ SECURITY OTP : >>> ${otp} <<<                            │`);
-  console.log('│ Delivery     : Real Telecom Cellular SMS via TextBee        │');
-  console.log('└─────────────────────────────────────────────────────────────┘\n');
+  if (env.isDev) {
+    logger.debug(`[Auth] Phone registration OTP issued for ${cleanPhone}: ****${otp.slice(-2)}`);
+  }
 
   // Dispatch real SMS via TextBee
+  let smsDelivered = false;
   try {
-    await smsService.sendOtpSms(cleanPhone, otp);
+    const smsResult = await smsService.sendOtpSms(cleanPhone, otp);
+    smsDelivered = smsResult?.success === true;
   } catch (smsErr) {
-    console.error('[Auth] TextBee SMS dispatch error on register:', smsErr.message);
+    logger.warn('[Auth] TextBee SMS dispatch failed on register', { phone: cleanPhone, error: smsErr.message });
+  }
+
+  if (!smsDelivered) {
+    throw Object.assign(
+      new Error('Unable to deliver SMS verification code right now. Please check your mobile number or sign up with Google.'),
+      { statusCode: 502 }
+    );
   }
 
   return {
@@ -783,7 +887,7 @@ async function phoneRegisterRequest({ phone, name, username }) {
   };
 }
 
-async function phoneRegisterVerify({ phone, otp, name, username }) {
+async function phoneRegisterVerify({ phone, otp, name, username, platform = 'web', userAgent = '' }) {
   const cleanPhone = formatCleanPhone(phone);
   const cleanOtp = (otp || '').toString().trim();
 
@@ -799,6 +903,12 @@ async function phoneRegisterVerify({ phone, otp, name, username }) {
 
   if (!record) {
     throw Object.assign(new Error('Verification code expired or not found. Please request a new code.'), { statusCode: 400 });
+  }
+
+  if (new Date() > record.expiresAt) {
+    record.status = 'expired';
+    await record.save();
+    throw Object.assign(new Error('Verification code has expired. Please request a new code.'), { statusCode: 400 });
   }
 
   if (record.attempts >= 3) {
@@ -862,7 +972,7 @@ async function phoneRegisterVerify({ phone, otp, name, username }) {
   });
 
   const { accessToken, refreshToken } = buildTokenPair(user);
-  await saveRefreshToken(user._id, refreshToken);
+  await saveRefreshToken(user._id, refreshToken, { platform, userAgent });
 
   const safeUser = user.toSafeJSON ? user.toSafeJSON() : { ...user };
   delete safeUser.password;
@@ -894,21 +1004,18 @@ async function forgotPassword(email) {
 
   const resetToken = generateHexToken();
   await userRepo.updateById(user._id, {
-    passwordResetToken: resetToken,
+    passwordResetToken: hashToken(resetToken),
     passwordResetExpiry: new Date(Date.now() + RESET_TOKEN_TTL),
   });
 
   const resetUrl = `${env.CLIENT_ORIGIN}/reset-password?token=${resetToken}`;
-  console.log('\n┌─────────────────────────────────────────────────────────────┐');
-  console.log('│ 🔑  BUDGI PASSWORD RESET LINK GENERATED                      │');
-  console.log(`│ Target Email: ${cleanEmail.padEnd(44)} │`);
-  console.log(`│ Reset Token : ${resetToken.padEnd(44)} │`);
-  console.log(`│ Reset Link  : ${resetUrl.slice(0, 44).padEnd(44)} │`);
-  console.log('└─────────────────────────────────────────────────────────────┘\n');
+  if (env.isDev) {
+    logger.debug('[Auth] Password reset link generated', { targetEmail: cleanEmail, resetUrl });
+  }
 
   const { subject, html } = emailSvc.passwordResetEmail(user.name, resetUrl);
   emailSvc.sendEmail({ to: user.email, subject, html }).catch((err) => {
-    console.error('[Auth] Failed to send password reset email:', err.message);
+    logger.warn('[Auth] Failed to send password reset email', { error: err.message });
   });
 
   return {
@@ -930,7 +1037,11 @@ async function resetPassword(token, newPassword) {
     throw Object.assign(new Error('Password must be at least 8 characters'), { statusCode: 400 });
   }
 
-  const user = await userRepo.findByPasswordResetToken(token);
+  const hashedToken = hashToken(token);
+  let user = await userRepo.findByPasswordResetToken(hashedToken);
+  if (!user) {
+    user = await userRepo.findByPasswordResetToken(token);
+  }
   if (!user) {
     throw Object.assign(new Error('Invalid or expired reset link'), { statusCode: 400 });
   }
@@ -945,9 +1056,10 @@ async function resetPassword(token, newPassword) {
     password: hashed,
     passwordResetToken: null,
     passwordResetExpiry: null,
-    // Also clear refresh tokens to force re-login on all devices
+    // Clear sessions & legacy tokens across all devices for safety
     refreshToken: null,
     refreshTokenExpiry: null,
+    sessions: [],
   });
 
   return { message: 'Password reset successful. Please log in with your new password.' };
@@ -957,7 +1069,7 @@ async function resetPassword(token, newPassword) {
 // Refresh Token — exchange a valid refresh token for a new access + refresh pair
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function refreshAccessToken(incomingRefreshToken) {
+async function refreshAccessToken(incomingRefreshToken, meta = {}) {
   if (!incomingRefreshToken) {
     throw Object.assign(new Error('Refresh token is required'), { statusCode: 400 });
   }
@@ -968,23 +1080,71 @@ async function refreshAccessToken(incomingRefreshToken) {
     throw Object.assign(new Error('Invalid or expired refresh token'), { statusCode: 401 });
   }
 
-  if (!user.refreshTokenExpiry || new Date() > user.refreshTokenExpiry) {
-    await userRepo.updateById(user._id, { refreshToken: null, refreshTokenExpiry: null });
+  const userDoc = await User.findById(user._id).select('+sessions +refreshToken +refreshTokenExpiry');
+  if (!userDoc) {
+    throw Object.assign(new Error('User account not found'), { statusCode: 404 });
+  }
+
+  const matchingSession = (userDoc.sessions || []).find((s) => s.tokenHash === hashedToken);
+  const isLegacyMatch = userDoc.refreshToken === hashedToken;
+
+  if (!matchingSession && !isLegacyMatch) {
+    throw Object.assign(new Error('Invalid or expired refresh token'), { statusCode: 401 });
+  }
+
+  const isExpired = matchingSession
+    ? new Date() > matchingSession.expiresAt
+    : (userDoc.refreshTokenExpiry && new Date() > userDoc.refreshTokenExpiry);
+
+  if (isExpired) {
+    if (userDoc.sessions) {
+      userDoc.sessions = userDoc.sessions.filter((s) => s.tokenHash !== hashedToken);
+      await userDoc.save();
+    }
     throw Object.assign(new Error('Refresh token expired — please log in again'), { statusCode: 401 });
   }
 
   const { accessToken, refreshToken: newRefreshToken } = buildTokenPair(user);
-  await saveRefreshToken(user._id, newRefreshToken);
+  const newHash = hashToken(newRefreshToken);
+  const newExpiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL);
+
+  if (matchingSession) {
+    matchingSession.tokenHash = newHash;
+    matchingSession.expiresAt = newExpiresAt;
+    matchingSession.createdAt = new Date();
+    if (meta.platform) matchingSession.platform = meta.platform;
+    if (meta.userAgent) matchingSession.userAgent = meta.userAgent.slice(0, 200);
+    userDoc.refreshToken = newHash;
+    userDoc.refreshTokenExpiry = newExpiresAt;
+    await userDoc.save();
+  } else {
+    await saveRefreshToken(user._id, newRefreshToken, meta);
+  }
 
   return { token: accessToken, refreshToken: newRefreshToken, user: user.toSafeJSON() };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Logout — invalidate refresh token
+// Logout — invalidate current session or all refresh tokens
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function logout(userId) {
-  await userRepo.updateById(userId, { refreshToken: null, refreshTokenExpiry: null });
+async function logout(userId, incomingRefreshToken) {
+  const user = await User.findById(userId).select('+sessions');
+  if (user) {
+    if (incomingRefreshToken) {
+      const hashed = hashToken(incomingRefreshToken);
+      user.sessions = (user.sessions || []).filter((s) => s.tokenHash !== hashed);
+      if (user.refreshToken === hashed) {
+        user.refreshToken = null;
+        user.refreshTokenExpiry = null;
+      }
+    } else {
+      user.sessions = [];
+      user.refreshToken = null;
+      user.refreshTokenExpiry = null;
+    }
+    await user.save();
+  }
   return { message: 'Logged out' };
 }
 
@@ -1128,7 +1288,13 @@ async function verifyFirebaseToken(idToken) {
   }
 
   // 2. Google Identity Toolkit REST verification using BudGi project API key
-  const apiKey = env.FIREBASE_API_KEY || 'AIzaSyAUlLYW2rmOxH1fAF3VTDXC9TysC5ywbto';
+  const apiKey = env.FIREBASE_API_KEY;
+  if (!apiKey) {
+    throw Object.assign(
+      new Error('Firebase Phone Authentication requires FIREBASE_API_KEY to be configured in server environment.'),
+      { statusCode: 503 }
+    );
+  }
   const url = `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`;
   const res = await fetch(url, {
     method: 'POST',
@@ -1157,7 +1323,7 @@ async function verifyFirebaseToken(idToken) {
   };
 }
 
-async function firebasePhoneLogin({ idToken }) {
+async function firebasePhoneLogin({ idToken, platform = 'web', userAgent = '' }) {
   const { phone } = await verifyFirebaseToken(idToken);
   const cleanPhone = formatCleanPhone(phone);
 
@@ -1170,7 +1336,7 @@ async function firebasePhoneLogin({ idToken }) {
   }
 
   const { accessToken, refreshToken } = buildTokenPair(user);
-  await saveRefreshToken(user._id, refreshToken);
+  await saveRefreshToken(user._id, refreshToken, { platform, userAgent });
 
   const safeUser = user.toSafeJSON ? user.toSafeJSON() : { ...user };
   delete safeUser.password;
@@ -1185,7 +1351,7 @@ async function firebasePhoneLogin({ idToken }) {
   };
 }
 
-async function firebasePhoneRegister({ idToken, name, username }) {
+async function firebasePhoneRegister({ idToken, name, username, platform = 'web', userAgent = '' }) {
   const { phone } = await verifyFirebaseToken(idToken);
   const cleanPhone = formatCleanPhone(phone);
 
@@ -1224,7 +1390,7 @@ async function firebasePhoneRegister({ idToken, name, username }) {
   });
 
   const { accessToken, refreshToken } = buildTokenPair(user);
-  await saveRefreshToken(user._id, refreshToken);
+  await saveRefreshToken(user._id, refreshToken, { platform, userAgent });
 
   const safeUser = user.toSafeJSON ? user.toSafeJSON() : { ...user };
   delete safeUser.password;

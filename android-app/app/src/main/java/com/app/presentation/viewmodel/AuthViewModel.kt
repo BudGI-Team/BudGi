@@ -85,6 +85,10 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    fun setAuthError(message: String) {
+        _uiState.update { it.copy(isLoading = false, error = message) }
+    }
+
     fun sendPhoneOtp(phone: String) {
         val preAuth = _uiState.value.preAuthToken ?: return
         viewModelScope.launch {
