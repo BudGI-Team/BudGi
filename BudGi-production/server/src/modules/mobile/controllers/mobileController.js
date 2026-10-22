@@ -114,16 +114,16 @@ const LATEST_APK_URL = `https://github.com/${GITHUB_REPO}/releases/latest/downlo
 const RELEASES_PAGE_URL = `https://github.com/${GITHUB_REPO}/releases`;
 
 const APP_UPDATE_INFO = {
-  latestVersionCode: 3,
-  latestVersionName: '1.1.1',
+  latestVersionCode: 4,
+  latestVersionName: '1.1.2',
   minSupportedVersionCode: 1,
   forceUpdate: false,
   maintenance: false,
   apkUrl: LATEST_APK_URL,
   apkChecksumSha256: null,
   releasesUrl: RELEASES_PAGE_URL,
-  releaseNotes: '• Fixed startup crash on launch\n• Hardened offline storage & background sync\n• Live Render cloud sync enabled\n• Real-time financial dashboard & ledger',
-  publishedAt: '2026-10-21T11:30:00Z',
+  releaseNotes: '• Resolved startup launch crash across all Android devices\n• Full Theme & BiometricPrompt compatibility\n• Enhanced offline storage & background sync\n• Live Render cloud sync',
+  publishedAt: new Date().toISOString(),
 };
 
 const getAppConfig = asyncHandler(async (_req, res) => {

@@ -33,6 +33,7 @@ class ProfileViewModelTest {
     private lateinit var themeManager: ThemeManager
     private lateinit var spaceRepository: SpaceRepository
     private lateinit var biometricSecurityManager: BiometricSecurityManager
+    private lateinit var appUpdateManager: com.app.data.updater.AppUpdateManager
     private lateinit var viewModel: ProfileViewModel
 
     @Before
@@ -45,12 +46,14 @@ class ProfileViewModelTest {
         themeManager = mock()
         spaceRepository = mock()
         biometricSecurityManager = mock()
+        appUpdateManager = mock()
 
         // Setup mock behavior
         whenever(tokenManager.isBiometricEnabled).thenReturn(true)
         whenever(tokenManager.isPushEnabled).thenReturn(true)
         whenever(tokenManager.isDarkModeEnabled).thenReturn(true)
         whenever(authRepository.isLoggedIn).thenReturn(true)
+        whenever(appUpdateManager.updateState).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(com.app.data.updater.UpdateState.Idle))
         
         val mockUser = User(
             id = "1",
@@ -73,7 +76,8 @@ class ProfileViewModelTest {
             tokenManager,
             themeManager,
             spaceRepository,
-            biometricSecurityManager
+            biometricSecurityManager,
+            appUpdateManager
         )
     }
 

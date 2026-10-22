@@ -57,9 +57,18 @@
     @javax.inject.Inject <methods>;
 }
 
-# ── Domain Models, Entities, DTOs ───────────────────────────────────
+# ── Domain Models, Entities, DTOs & Retrofit APIs ───────────────────
 -keep class com.app.domain.model.** { *; }
 -keep class com.app.data.remote.dto.** { *; }
+-keep interface com.app.data.remote.api.** { *; }
+-keep class com.app.data.remote.api.** { *; }
+-keepclassmembers interface com.app.data.remote.api.** {
+    <methods>;
+}
+-keep class com.app.presentation.viewmodel.** { *; }
+-keepclassmembers class com.app.presentation.viewmodel.** {
+    @javax.inject.Inject <init>(...);
+}
 -keep class com.app.data.updater.** { *; }
 -keep class com.app.security.** { *; }
 

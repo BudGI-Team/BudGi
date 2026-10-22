@@ -64,8 +64,8 @@ object AppModule {
         Room.databaseBuilder(context, AppDatabase::class.java, "finance-db")
             .addMigrations(AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15)
             // SAFE: Only destroys data from versions BEFORE current.
-            // For future schema changes, add proper Migration objects.
-            .fallbackToDestructiveMigrationFrom(true, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)
+            .fallbackToDestructiveMigration(true)
+            .fallbackToDestructiveMigrationOnDowngrade(true)
             .build()
 
     @Provides fun provideTransactionDao(db: AppDatabase): TransactionDao = db.transactionDao()
