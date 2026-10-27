@@ -23,14 +23,14 @@ class TokenManager @Inject constructor(
     private val prefs: SharedPreferences by lazy {
         try {
             createPrefs()
-        } catch (e: Exception) {
-            android.util.Log.e("TokenManager", "EncryptedSharedPreferences corrupted or keys invalidated. Resetting.", e)
+        } catch (t: Throwable) {
+            android.util.Log.e("TokenManager", "EncryptedSharedPreferences corrupted or keys invalidated. Resetting.", t)
             try {
                 context.deleteSharedPreferences("budgi_secure_prefs")
                 val freshPrefs = createPrefs()
                 freshPrefs.edit().putBoolean("encrypted_prefs_reset", true).apply()
                 freshPrefs
-            } catch (fallbackEx: Exception) {
+            } catch (fallbackEx: Throwable) {
                 android.util.Log.e("TokenManager", "Critical Keystore/Tink failure. Falling back to standard SharedPreferences.", fallbackEx)
                 context.getSharedPreferences("budgi_prefs_fallback", Context.MODE_PRIVATE)
             }

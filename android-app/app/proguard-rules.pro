@@ -43,13 +43,25 @@
 -keep,allowobfuscation,allowshrinking class kotlinx.serialization.**
 
 # ── Hilt & Dagger ───────────────────────────────────────────────────
--keep,allowobfuscation,allowshrinking @interface dagger.hilt.**
 -keep class dagger.hilt.** { *; }
+-keep @interface dagger.hilt.** { *; }
+-keep @dagger.hilt.android.lifecycle.HiltViewModel class * { *; }
+-keep class * extends androidx.lifecycle.ViewModel {
+    <init>(...);
+    *;
+}
+-keep class * extends androidx.lifecycle.AndroidViewModel {
+    <init>(...);
+    *;
+}
+-keep class * extends androidx.lifecycle.ViewModelProvider$Factory { *; }
 -keep class * extends dagger.hilt.internal.GeneratedComponent { *; }
 -keep class * extends dagger.hilt.internal.TestSingletonComponent { *; }
 -keep @dagger.hilt.android.EarlyEntryPoint class * { *; }
 -keep @dagger.hilt.EntryPoint class * { *; }
+-keep @dagger.hilt.EntryPoint interface * { *; }
 -keep @dagger.hilt.InstallIn class * { *; }
+-keep @dagger.hilt.InstallIn interface * { *; }
 -keep class com.app.di.** { *; }
 -keepclassmembers class * {
     @javax.inject.Inject <init>(...);
@@ -57,8 +69,9 @@
     @javax.inject.Inject <methods>;
 }
 
-# ── Domain Models, Entities, DTOs & Retrofit APIs ───────────────────
--keep class com.app.domain.model.** { *; }
+# ── Domain Models, Use Cases, Repositories & Retrofit APIs ──────────
+-keep class com.app.domain.** { *; }
+-keep class com.app.data.repository.** { *; }
 -keep class com.app.data.remote.dto.** { *; }
 -keep interface com.app.data.remote.api.** { *; }
 -keep class com.app.data.remote.api.** { *; }
@@ -91,8 +104,12 @@
 -dontwarn androidx.security.crypto.**
 -keep class com.google.crypto.tink.** { *; }
 -dontwarn com.google.crypto.tink.**
+-keep class com.google.crypto.tink.shaded.protobuf.** { *; }
+-dontwarn com.google.crypto.tink.shaded.protobuf.**
+-keep class com.google.crypto.tink.subtle.** { *; }
+-dontwarn com.google.crypto.tink.subtle.**
 -keepclassmembers class * extends com.google.crypto.tink.shaded.protobuf.GeneratedMessageLite {
-    <fields>;
+    *;
 }
 
 # ── AndroidX WorkManager & Workers ───────────────────────────────────

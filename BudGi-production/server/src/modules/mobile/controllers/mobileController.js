@@ -114,8 +114,8 @@ const LATEST_APK_URL = `https://github.com/${GITHUB_REPO}/releases/latest/downlo
 const RELEASES_PAGE_URL = `https://github.com/${GITHUB_REPO}/releases`;
 
 const APP_UPDATE_INFO = {
-  latestVersionCode: 4,
-  latestVersionName: '1.1.2',
+  latestVersionCode: 5,
+  latestVersionName: '1.1.3',
   minSupportedVersionCode: 1,
   forceUpdate: false,
   maintenance: false,

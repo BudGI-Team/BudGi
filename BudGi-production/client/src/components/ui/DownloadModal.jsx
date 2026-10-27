@@ -13,8 +13,8 @@ import {
 } from 'lucide-react';
 import './DownloadModal.css';
 
-const LATEST_VERSION = 'v1.1.2';
-const APK_DOWNLOAD_URL = 'https://github.com/BudGI-Team/BudGi/releases/download/v1.1.2/BudGi.apk';
+const LATEST_VERSION = 'v1.1.3';
+const APK_DOWNLOAD_URL = 'https://github.com/BudGI-Team/BudGi/releases/latest/download/BudGi.apk';
 const RELEASES_PAGE_URL = 'https://github.com/BudGI-Team/BudGi/releases';
 
 export default function DownloadModal({ isOpen, onClose }) {
@@ -27,7 +27,7 @@ export default function DownloadModal({ isOpen, onClose }) {
     setDownloadStarted(true);
     const link = document.createElement('a');
     link.href = APK_DOWNLOAD_URL;
-    link.download = 'BudGi-v1.1.2.apk';
+    link.download = 'BudGi-v1.1.3.apk';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

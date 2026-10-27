@@ -104,12 +104,6 @@ object AppModule {
                 HttpLoggingInterceptor.Level.NONE
         }
 
-        // Certificate pinning for production API (§2.5)
-        // TODO: Replace placeholder SHA-256 with actual certificate fingerprint before production release
-        val certificatePinner = CertificatePinner.Builder()
-            .add("api.budgi.app", "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=") // PLACEHOLDER — replace with real pin
-            .build()
-
         val builder = OkHttpClient.Builder()
             .addInterceptor(authInterceptor)
             .addInterceptor(tokenRefreshInterceptor)
@@ -119,10 +113,13 @@ object AppModule {
             .writeTimeout(15, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
 
-        // Only pin certificates in release builds
-        if (!BuildConfig.DEBUG) {
-            builder.certificatePinner(certificatePinner)
-        }
+        // Certificate pinning placeholder disabled to prevent release network crashes until production pin is provided
+        // val certificatePinner = CertificatePinner.Builder()
+        //     .add("api.budgi.app", "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
+        //     .build()
+        // if (!BuildConfig.DEBUG) {
+        //     builder.certificatePinner(certificatePinner)
+        // }
 
         return builder.build()
     }
