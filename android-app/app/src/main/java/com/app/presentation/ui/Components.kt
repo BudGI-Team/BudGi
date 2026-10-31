@@ -198,13 +198,6 @@ fun getCategoryIcon(category: String): ImageVector {
         normalized.contains("penalty") || normalized.contains("fee") || normalized.contains("charges") ||
         normalized.contains("tax") || normalized.contains("gst") -> Icons.Default.AccountBalance
 
-        normalized.contains("domestic") || normalized.contains("maid") || normalized.contains("bai") ||
-        normalized.contains("cook") || normalized.contains("laundry") || normalized.contains("dhobi") ||
-        normalized.contains("wages") -> CategoryColors.DomesticStaff
-
-        normalized.contains("pooja") || normalized.contains("puja") || normalized.contains("temple") ||
-        normalized.contains("mandir") || normalized.contains("devotion") -> CategoryColors.Devotion
-
         else -> {
             val hash = kotlin.math.abs(category.trim().lowercase().hashCode())
             val fallbackIcons = listOf(
@@ -282,6 +275,13 @@ fun getCategoryColor(category: String): Color {
 
         normalized.contains("salon") || normalized.contains("beauty") || normalized.contains("spa") ||
         normalized.contains("grooming") -> CategoryColors.PersonalCare
+
+        normalized.contains("domestic") || normalized.contains("maid") || normalized.contains("bai") ||
+        normalized.contains("cook") || normalized.contains("laundry") || normalized.contains("dhobi") ||
+        normalized.contains("wages") -> CategoryColors.DomesticStaff
+
+        normalized.contains("pooja") || normalized.contains("puja") || normalized.contains("temple") ||
+        normalized.contains("mandir") || normalized.contains("devotion") -> CategoryColors.Devotion
 
         normalized.contains("pet") || normalized.contains("vet") || normalized.contains("dog") ||
         normalized.contains("cat") -> CategoryColors.Pets
