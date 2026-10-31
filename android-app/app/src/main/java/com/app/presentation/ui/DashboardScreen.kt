@@ -676,6 +676,9 @@ private fun RecentActivitySection(state: DashboardUiState, onSeeAllTransactions:
                         categorySource = transaction.categorySource,
                         isRecurring = transaction.isRecurring,
                         isAnomaly = transaction.isAnomaly,
+                        method = transaction.method,
+                        accountLast4 = transaction.accountLast4,
+                        source = transaction.source,
                         onClick = onSeeAllTransactions
                     )
                 }
@@ -2134,10 +2137,21 @@ fun MicroSpendCatchUpCard(
 ) {
     if (unreviewedTransactions.isEmpty()) return
 
-    val currentTx = unreviewedTransactions.first()
+    var currentIndex by rememberSaveable { mutableStateOf(0) }
+    val validIndex = currentIndex.coerceIn(0, (unreviewedTransactions.size - 1).coerceAtLeast(0))
+    val currentTx = unreviewedTransactions.getOrElse(validIndex) { unreviewedTransactions.first() }
+
     val friendlyName = remember(currentTx.id, currentTx.clientId, currentTx.merchant, currentTx.upiId) {
         currentTx.alias?.takeIf { it.isNotBlank() }
             ?: com.app.data.sms.MerchantNormalizer.extractFriendlyName(currentTx.merchant, currentTx.upiId)
+    }
+
+    val predictedCategory = remember(currentTx.id, currentTx.category) {
+        if (currentTx.category.isNotBlank() && !currentTx.category.equals("Others", ignoreCase = true)) {
+            currentTx.category
+        } else {
+            "Food & Dining"
+        }
     }
 
     val haptic = LocalHapticFeedback.current
@@ -2145,6 +2159,7 @@ fun MicroSpendCatchUpCard(
     var customAlias by remember(currentTx.id, currentTx.clientId) { mutableStateOf(friendlyName) }
     var isEditingName by remember(currentTx.id, currentTx.clientId) { mutableStateOf(false) }
     var confirmedMessage by remember { mutableStateOf<String?>(null) }
+    var showCategoryPicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(confirmedMessage) {
         if (confirmedMessage != null) {
@@ -2155,6 +2170,22 @@ fun MicroSpendCatchUpCard(
 
     val cardBg = if (isDark) Color(0xFF13161C) else MaterialTheme.colorScheme.surface
     val cardBorder = if (isDark) Color(0xFF222630) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+
+    if (showCategoryPicker) {
+        CategoryEditDialog(
+            transaction = currentTx,
+            onDismiss = { showCategoryPicker = false },
+            onConfirm = { newCat, newAlias, _, _ ->
+                val txId = currentTx.clientId?.ifEmpty { currentTx.id } ?: currentTx.id
+                onReviewTransaction(txId, newCat, newAlias)
+                confirmedMessage = "✓ Tagged as $newCat & learned for future visits"
+                showCategoryPicker = false
+                if (currentIndex >= unreviewedTransactions.size - 1) {
+                    currentIndex = 0
+                }
+            }
+        )
+    }
 
     Box(
         modifier = modifier
@@ -2167,8 +2198,8 @@ fun MicroSpendCatchUpCard(
                 contentDescription = "Micro-Spend Catch-Up: ${unreviewedTransactions.size} transactions to categorize"
             }
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            // Header Row: Minimal Icon + Title + Count Pill + Dismiss
+        Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
+            // Header Row: Minimal Icon + Title + Queue Indicator + Dismiss / Nav
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -2208,40 +2239,74 @@ fun MicroSpendCatchUpCard(
                             )
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = Color(0xFFF59E0B).copy(alpha = 0.15f),
-                                border = androidx.compose.foundation.BorderStroke(0.6.dp, Color(0xFFF59E0B).copy(alpha = 0.35f))
+                                color = Color(0xFF10B981).copy(alpha = 0.15f),
+                                border = androidx.compose.foundation.BorderStroke(0.6.dp, Color(0xFF10B981).copy(alpha = 0.35f))
                             ) {
                                 Text(
-                                    text = "${unreviewedTransactions.size} new",
+                                    text = "${validIndex + 1} of ${unreviewedTransactions.size}",
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFF59E0B),
+                                    color = Color(0xFF10B981),
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
                         }
                         Text(
-                            text = "1-tap categorize • Learns vendor permanently",
+                            text = "1-click smart triage • Learns vendor memory",
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
 
-                IconButton(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        val idToDismiss = currentTx.clientId?.ifEmpty { currentTx.id } ?: currentTx.id
-                        onDismissReview(idToDismiss)
-                    },
-                    modifier = Modifier.size(28.dp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Dismiss",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier.size(16.dp)
-                    )
+                    if (unreviewedTransactions.size > 1) {
+                        IconButton(
+                            onClick = {
+                                if (currentIndex > 0) currentIndex-- else currentIndex = unreviewedTransactions.size - 1
+                            },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ChevronLeft,
+                                contentDescription = "Previous",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        IconButton(
+                            onClick = {
+                                if (currentIndex < unreviewedTransactions.size - 1) currentIndex++ else currentIndex = 0
+                            },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = "Next",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
+                    IconButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            val idToDismiss = currentTx.clientId?.ifEmpty { currentTx.id } ?: currentTx.id
+                            onDismissReview(idToDismiss)
+                        },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Dismiss",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
 
@@ -2344,32 +2409,106 @@ fun MicroSpendCatchUpCard(
                 }
             }
 
-            // Quick 1-Tap Category Pills
-            val quickCategories = remember {
-                listOf(
-                    Pair("☕ Chai/Food", "Food & Dining"),
-                    Pair("🥦 Grocery", "Groceries"),
-                    Pair("🛺 Travel", "Transport"),
-                    Pair("🛍️ Shopping", "Shopping"),
-                    Pair("🍿 Fun", "Entertainment")
+            // ── Primary 1-Click Smart Confirmation Button ──
+            Button(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    val txId = currentTx.clientId?.ifEmpty { currentTx.id } ?: currentTx.id
+                    val finalAlias = customAlias.trim().ifBlank { friendlyName }
+                    onReviewTransaction(txId, predictedCategory, finalAlias)
+                    confirmedMessage = "✓ Learned: Future payments to $finalAlias auto-categorize as $predictedCategory"
+                    if (currentIndex >= unreviewedTransactions.size - 1) {
+                        currentIndex = 0
+                    }
+                },
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF10B981),
+                    contentColor = Color.White
+                ),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Confirm $predictedCategory (1-Click)",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
                 )
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                quickCategories.forEach { (label, category) ->
-                    val txId = currentTx.clientId?.ifEmpty { currentTx.id } ?: currentTx.id
-                    val finalAlias = customAlias.trim().ifBlank { friendlyName }
+            // ── Indian Market Quick Alternative Chips ──
+            val quickIndianCategories = remember {
+                listOf(
+                    Pair("🥦 Mandi", "Vegetables & Mandi"),
+                    Pair("🥛 Dairy", "Dairy & Milk"),
+                    Pair("☕ Food", "Food & Dining"),
+                    Pair("🛺 Travel", "Transport"),
+                    Pair("🛒 Grocery", "Groceries"),
+                    Pair("✂️ Salon", "Personal Care & Salon"),
+                    Pair("⚡ Bills", "Utilities & Bills")
+                )
+            }
 
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = "OR CHOOSE ALTERNATIVE",
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.5.sp, letterSpacing = 0.8.sp),
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    quickIndianCategories.take(4).forEach { (label, category) ->
+                        val txId = currentTx.clientId?.ifEmpty { currentTx.id } ?: currentTx.id
+                        val finalAlias = customAlias.trim().ifBlank { friendlyName }
+
+                        Surface(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onReviewTransaction(txId, category, finalAlias)
+                                confirmedMessage = "✓ Learned: $finalAlias categorized as $category"
+                                if (currentIndex >= unreviewedTransactions.size - 1) {
+                                    currentIndex = 0
+                                }
+                            },
+                            shape = RoundedCornerShape(9.dp),
+                            color = if (isDark) Color(0xFF1B1E26) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            border = androidx.compose.foundation.BorderStroke(
+                                0.8.dp,
+                                if (isDark) Color(0xFF282D3C) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                            ),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface,
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(vertical = 7.dp, horizontal = 2.dp)
+                            )
+                        }
+                    }
+
+                    // More Categories Chip
                     Surface(
                         onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onReviewTransaction(txId, category, finalAlias)
-                            confirmedMessage = "✓ Learned: Future payments to $finalAlias auto-categorize as $category"
+                            showCategoryPicker = true
                         },
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(9.dp),
                         color = if (isDark) Color(0xFF1B1E26) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                         border = androidx.compose.foundation.BorderStroke(
                             0.8.dp,
@@ -2378,14 +2517,13 @@ fun MicroSpendCatchUpCard(
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
-                            text = label,
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+                            text = "+ More",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                             fontWeight = FontWeight.SemiBold,
-                            color = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface,
+                            color = Color(0xFF10B981),
                             textAlign = TextAlign.Center,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(vertical = 8.dp, horizontal = 2.dp)
+                            modifier = Modifier.padding(vertical = 7.dp, horizontal = 2.dp)
                         )
                     }
                 }

@@ -148,6 +148,10 @@ object CategoryColors {
     val Salary = Color(0xFF34A853)       // BudGi Emerald Mint
     val Transfer = Color(0xFF5A78A5)     // Slate Blue
     val PersonalCare = Color(0xFFD95D74) // Dusty Rose
+    val Vegetables = Color(0xFF48BB78)   // Fresh Garden Green (Mandi / Sabzi)
+    val Dairy = Color(0xFF2B9E9B)        // Fresh Milk / Dairy Teal
+    val DomesticStaff = Color(0xFF8B6CB0)// Muted Slate Violet (Maid / Cook / Staff)
+    val Devotion = Color(0xFFD97736)     // Warm Saffron Ochre (Pooja / Temple)
     val Pets = Color(0xFFD97706)         // Warm Ochre
     val Subscriptions = Color(0xFF475569)// Refined Neutral Slate
     val Others = Color(0xFF7E8B9B)       // Soft Pewter

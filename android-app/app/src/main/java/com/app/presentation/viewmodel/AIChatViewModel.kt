@@ -32,6 +32,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
@@ -145,6 +147,111 @@ class AIChatViewModel @Inject constructor(
 
         val userMsg = AIChatMessage(role = "user", content = userMessage.trim())
         val lowerText = userMessage.lowercase(Locale.US)
+
+        // ── AGENTIC EXECUTION ENGINE: Execute user imperative commands locally & immediately ──
+
+        // Agentic Intent 1: Direct Budget Creation / Update ("set food budget to 5000", "create budget 4000 for groceries")
+        val budgetRegex = Regex("(?:set|create|update|adjust)\\s+(?:budget\\s+for\\s+|budget\\s+)?([a-zA-Z\\s&]+?)\\s+(?:budget\\s+)?(?:to|of|at)\\s*(?:₹|rs\\.?|inr)?\\s*([0-9]+(?:,[0-9]+)*(?:\\.[0-9]+)?)", RegexOption.IGNORE_CASE)
+        val budgetMatch = budgetRegex.find(userMessage)
+        if (budgetMatch != null) {
+            val rawCategory = budgetMatch.groupValues[1].trim()
+            val rawLimit = budgetMatch.groupValues[2].replace(",", "").toDoubleOrNull()
+            if (rawLimit != null && rawLimit > 0) {
+                val matchedCategory = when {
+                    rawCategory.contains("food", ignoreCase = true) || rawCategory.contains("dining", ignoreCase = true) -> "Food & Dining"
+                    rawCategory.contains("groc", ignoreCase = true) -> "Groceries"
+                    rawCategory.contains("shop", ignoreCase = true) -> "Shopping"
+                    rawCategory.contains("trans", ignoreCase = true) || rawCategory.contains("travel", ignoreCase = true) -> "Transport"
+                    rawCategory.contains("bill", ignoreCase = true) || rawCategory.contains("util", ignoreCase = true) -> "Utilities & Bills"
+                    rawCategory.contains("sub", ignoreCase = true) -> "Subscriptions"
+                    rawCategory.contains("rent", ignoreCase = true) -> "Rent"
+                    rawCategory.contains("health", ignoreCase = true) || rawCategory.contains("med", ignoreCase = true) -> "Health & Wellness"
+                    rawCategory.contains("invest", ignoreCase = true) -> "Investment"
+                    else -> rawCategory.replaceFirstChar { it.uppercase() }
+                }
+
+                _uiState.update { state -> state.copy(messages = state.messages + userMsg) }
+                viewModelScope.launch {
+                    val intent = CopilotActionIntent.AdjustBudget(
+                        title = "Set $matchedCategory Budget",
+                        reason = "Direct user instruction via Copilot terminal",
+                        category = matchedCategory,
+                        currentLimit = null,
+                        proposedLimit = rawLimit
+                    )
+                    executeActionIntent(UUID.randomUUID().toString(), intent)
+                    val confirmMsg = AIChatMessage(
+                        role = "assistant",
+                        content = "⚡ **Executed**: Monthly budget for **$matchedCategory** set to **₹${"%,.0f".format(rawLimit)}**.\nYour limits and progress bars have been updated across your dashboard.",
+                        actionIntent = intent,
+                        isActionExecuted = true
+                    )
+                    _uiState.update { state -> state.copy(messages = state.messages + confirmMsg) }
+                }
+                return
+            }
+        }
+
+        // Agentic Intent 2: Direct Goal Creation ("create goal vacation 25000", "save 15000 for laptop")
+        val goalRegex = Regex("(?:create\\s+goal|new\\s+goal|save)\\s+(?:for\\s+)?([a-zA-Z\\s]+?)\\s+(?:of|for|with\\s+target)?\\s*(?:₹|rs\\.?|inr)?\\s*([0-9]+(?:,[0-9]+)*(?:\\.[0-9]+)?)", RegexOption.IGNORE_CASE)
+        val goalMatch = goalRegex.find(userMessage)
+        if (goalMatch != null && !lowerText.contains("can i") && !lowerText.contains("budget")) {
+            val goalTitle = goalMatch.groupValues[1].trim().replaceFirstChar { it.uppercase() }
+            val goalTarget = goalMatch.groupValues[2].replace(",", "").toDoubleOrNull()
+            if (goalTarget != null && goalTarget > 0 && goalTitle.length >= 2) {
+                _uiState.update { state -> state.copy(messages = state.messages + userMsg) }
+                viewModelScope.launch {
+                    val intent = CopilotActionIntent.CreateGoal(
+                        title = "Create Goal: $goalTitle",
+                        reason = "Direct user instruction via Copilot terminal",
+                        goalTitle = goalTitle,
+                        targetAmount = goalTarget,
+                        deadline = null
+                    )
+                    executeActionIntent(UUID.randomUUID().toString(), intent)
+                    val confirmMsg = AIChatMessage(
+                        role = "assistant",
+                        content = "🎯 **Executed**: Created savings goal **'$goalTitle'** with target **₹${"%,.0f".format(goalTarget)}**.\nTrack its progress anytime in your Goals tab.",
+                        actionIntent = intent,
+                        isActionExecuted = true
+                    )
+                    _uiState.update { state -> state.copy(messages = state.messages + confirmMsg) }
+                }
+                return
+            }
+        }
+
+        // Agentic Intent 3: Auto-Calibrate Budgets ("auto set budgets", "calibrate limits", "/budget auto-calibrate")
+        if (lowerText.contains("auto-calibrate") || lowerText.contains("auto set budget") || lowerText.contains("calibrate budget") || lowerText.contains("calibrate limits")) {
+            _uiState.update { state -> state.copy(messages = state.messages + userMsg) }
+            viewModelScope.launch {
+                try {
+                    val currentMonth = YearMonth.now().format(DateTimeFormatter.ofPattern("yyyy-MM"))
+                    val totals = transactionDao.observeCategoryTotalsByMonth(currentMonth).first()
+                    var count = 0
+                    if (totals.isNotEmpty()) {
+                        for (catTotal in totals) {
+                            if (catTotal.total > 0.0 && catTotal.category != "Others" && catTotal.category != "Transfer") {
+                                val raw = catTotal.total * 1.15 // 15% safety buffer
+                                val smartLimit = (Math.ceil(raw / 500.0) * 500.0).coerceAtLeast(1000.0)
+                                transactionRepository.saveBudget(
+                                    Budget(category = catTotal.category, limit = smartLimit, period = "monthly")
+                                )
+                                count++
+                            }
+                        }
+                    }
+                    val confirmMsg = AIChatMessage(
+                        role = "assistant",
+                        content = "⚡ **Executed**: Auto-calibrated smart budget limits for **$count active categories** based on your real spending velocity with a 15% discretionary buffer."
+                    )
+                    _uiState.update { state -> state.copy(messages = state.messages + confirmMsg) }
+                } catch (e: Exception) {
+                    _uiState.update { state -> state.copy(error = "Auto-calibration failed: ${e.message}") }
+                }
+            }
+            return
+        }
 
         // 1. Intercept Cashflow Prediction locally
         if (lowerText.contains("predict") || lowerText.contains("cashflow") || lowerText.contains("forecast")) {

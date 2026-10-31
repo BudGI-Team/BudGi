@@ -55,7 +55,7 @@ fun TransactionsScreen(
     isLoading: Boolean,
     onClearActivity: () -> Unit,
     onAddTransaction: (Double, String, String, String, String, List<com.app.domain.model.SplitDetail>) -> Unit,
-    onEditCategory: (transactionId: String, newCategory: String, applyToPast: Boolean, applyToFuture: Boolean) -> Unit = { _, _, _, _ -> },
+    onEditCategory: (transactionId: String, newCategory: String, applyToPast: Boolean, applyToFuture: Boolean, alias: String?) -> Unit = { _, _, _, _, _ -> },
     onScanReceipt: (java.io.File, (com.app.data.remote.dto.ScannedReceiptDto) -> Unit, (String) -> Unit) -> Unit = { _, _, _ -> },
     onImportCsv: (java.io.File, (com.app.data.remote.dto.CsvImportResultDto) -> Unit, (String) -> Unit) -> Unit = { _, _, _ -> }
 ) {
@@ -1215,6 +1215,9 @@ fun TransactionsScreen(
                                     categorySource = transaction.categorySource,
                                     isRecurring = transaction.isRecurring,
                                     isAnomaly = transaction.isAnomaly,
+                                    method = transaction.method,
+                                    accountLast4 = transaction.accountLast4,
+                                    source = transaction.source,
                                     onClick = { editingTransaction = transaction }
                                 )
                             }
@@ -1307,8 +1310,8 @@ fun TransactionsScreen(
             transaction = tx,
             availableCategories = categories,
             onDismiss = { editingTransaction = null },
-            onConfirm = { newCategory, applyToPast, applyToFuture ->
-                onEditCategory(tx.id, newCategory, applyToPast, applyToFuture)
+            onConfirm = { newCategory, newAlias, applyToPast, applyToFuture ->
+                onEditCategory(tx.id, newCategory, applyToPast, applyToFuture, newAlias)
                 editingTransaction = null
             }
         )

@@ -30,6 +30,7 @@ class BudgetViewModel @Inject constructor(
     private val repository: TransactionRepository,
     private val categoryDao: CategoryDao,
     private val budgetDao: BudgetDao,
+    private val transactionDao: com.app.data.local.dao.TransactionDao,
     private val copilotProposalEngine: CopilotProposalEngine
 ) : ViewModel() {
 
@@ -112,6 +113,27 @@ class BudgetViewModel @Inject constructor(
     fun deleteBudget(id: String) {
         viewModelScope.launch {
             repository.deleteBudget(id)
+        }
+    }
+    /**
+     * Auto-calibrates smart budget limits for all active categories
+     * based on the user's real monthly spending cadence + 15% safety buffer.
+     */
+    fun autoCalibrateBudgets() {
+        viewModelScope.launch {
+            try {
+                val currentMonth = java.time.YearMonth.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM"))
+                val totals = transactionDao.observeCategoryTotalsByMonth(currentMonth).first()
+                for (catTotal in totals) {
+                    if (catTotal.total > 0.0 && catTotal.category != "Others" && catTotal.category != "Transfer") {
+                        val raw = catTotal.total * 1.15
+                        val smartLimit = (Math.ceil(raw / 500.0) * 500.0).coerceAtLeast(1000.0)
+                        addOrUpdateBudget(catTotal.category, smartLimit)
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 }

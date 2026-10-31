@@ -116,10 +116,14 @@ fun getCategoryIcon(category: String): ImageVector {
         normalized.contains("coffee") || normalized.contains("eats") || normalized.contains("burger") || 
         normalized.contains("pizza") || normalized.contains("bakery") || normalized.contains("snack") -> Icons.Default.Restaurant
 
+        normalized.contains("vegetable") || normalized.contains("mandi") || normalized.contains("sabzi") || 
+        normalized.contains("sabji") || normalized.contains("fruits") -> Icons.Default.Eco
+
+        normalized.contains("dairy") || normalized.contains("milk") || normalized.contains("doodh") -> Icons.Default.LocalDrink
+
         normalized.contains("grocery") || normalized.contains("groceries") || normalized.contains("blinkit") || 
         normalized.contains("zepto") || normalized.contains("instamart") || normalized.contains("bigbasket") || 
-        normalized.contains("dmart") || normalized.contains("supermarket") || normalized.contains("vegetable") ||
-        normalized.contains("fruits") || normalized.contains("dairy") || normalized.contains("milk") -> Icons.Default.LocalGroceryStore
+        normalized.contains("dmart") || normalized.contains("supermarket") || normalized.contains("kirana") -> Icons.Default.LocalGroceryStore
 
         normalized.contains("travel") || normalized.contains("transport") || normalized.contains("cab") || 
         normalized.contains("uber") || normalized.contains("ola") || normalized.contains("rapido") || 
@@ -175,7 +179,14 @@ fun getCategoryIcon(category: String): ImageVector {
         normalized.contains("phonepe") || normalized.contains("paytm") -> Icons.Default.SwapHoriz
 
         normalized.contains("salon") || normalized.contains("beauty") || normalized.contains("spa") ||
-        normalized.contains("grooming") || normalized.contains("haircut") -> Icons.Default.Spa
+        normalized.contains("grooming") || normalized.contains("haircut") || normalized.contains("barber") -> Icons.Default.Spa
+
+        normalized.contains("domestic") || normalized.contains("maid") || normalized.contains("bai") || 
+        normalized.contains("cook") || normalized.contains("laundry") || normalized.contains("dhobi") || 
+        normalized.contains("wages") || normalized.contains("cleaner") -> Icons.Default.Handyman
+
+        normalized.contains("pooja") || normalized.contains("puja") || normalized.contains("temple") || 
+        normalized.contains("mandir") || normalized.contains("devotion") -> Icons.Default.VolunteerActivism
 
         normalized.contains("pet") || normalized.contains("vet") || normalized.contains("dog") ||
         normalized.contains("cat") -> Icons.Default.Pets
@@ -186,6 +197,13 @@ fun getCategoryIcon(category: String): ImageVector {
         normalized.contains("bank") || normalized.contains("atm") || normalized.contains("interest") || 
         normalized.contains("penalty") || normalized.contains("fee") || normalized.contains("charges") ||
         normalized.contains("tax") || normalized.contains("gst") -> Icons.Default.AccountBalance
+
+        normalized.contains("domestic") || normalized.contains("maid") || normalized.contains("bai") ||
+        normalized.contains("cook") || normalized.contains("laundry") || normalized.contains("dhobi") ||
+        normalized.contains("wages") -> CategoryColors.DomesticStaff
+
+        normalized.contains("pooja") || normalized.contains("puja") || normalized.contains("temple") ||
+        normalized.contains("mandir") || normalized.contains("devotion") -> CategoryColors.Devotion
 
         else -> {
             val hash = kotlin.math.abs(category.trim().lowercase().hashCode())
@@ -208,10 +226,14 @@ fun getCategoryColor(category: String): Color {
         normalized.contains("zomato") || normalized.contains("restaurant") || normalized.contains("cafe") || 
         normalized.contains("pizza") || normalized.contains("burger") || normalized.contains("bakery") -> CategoryColors.Food
 
+        normalized.contains("vegetable") || normalized.contains("mandi") || normalized.contains("sabzi") ||
+        normalized.contains("sabji") || normalized.contains("fruits") -> CategoryColors.Vegetables
+
+        normalized.contains("dairy") || normalized.contains("milk") || normalized.contains("doodh") -> CategoryColors.Dairy
+
         normalized.contains("grocery") || normalized.contains("groceries") || normalized.contains("blinkit") || 
         normalized.contains("zepto") || normalized.contains("instamart") || normalized.contains("bigbasket") || 
-        normalized.contains("dmart") || normalized.contains("supermarket") || normalized.contains("vegetable") ||
-        normalized.contains("dairy") || normalized.contains("milk") -> CategoryColors.Groceries
+        normalized.contains("dmart") || normalized.contains("supermarket") || normalized.contains("kirana") -> CategoryColors.Groceries
 
         normalized.contains("transport") || normalized.contains("travel") || normalized.contains("cab") || 
         normalized.contains("uber") || normalized.contains("ola") || normalized.contains("rapido") || 
@@ -291,7 +313,9 @@ fun getCategoryEmoji(category: String): String {
     val normalized = category.lowercase().trim()
     return when {
         normalized.contains("food") || normalized.contains("dining") || normalized.contains("swiggy") || normalized.contains("zomato") || normalized.contains("restaurant") -> "🍕"
-        normalized.contains("grocery") || normalized.contains("groceries") || normalized.contains("blinkit") || normalized.contains("zepto") -> "🥬"
+        normalized.contains("vegetable") || normalized.contains("mandi") || normalized.contains("sabzi") || normalized.contains("sabji") -> "🥦"
+        normalized.contains("dairy") || normalized.contains("milk") || normalized.contains("doodh") -> "🥛"
+        normalized.contains("grocery") || normalized.contains("groceries") || normalized.contains("blinkit") || normalized.contains("zepto") -> "🛒"
         normalized.contains("flight") || normalized.contains("air") || normalized.contains("trip") || normalized.contains("hotel") -> "✈️"
         normalized.contains("transport") || normalized.contains("cab") || normalized.contains("uber") || normalized.contains("ola") || normalized.contains("fuel") -> "🚗"
         normalized.contains("shopping") || normalized.contains("amazon") || normalized.contains("flipkart") || normalized.contains("myntra") -> "🛍️"
@@ -305,7 +329,9 @@ fun getCategoryEmoji(category: String): String {
         normalized.contains("investment") || normalized.contains("stock") || normalized.contains("mutual fund") || normalized.contains("crypto") -> "📈"
         normalized.contains("salary") || normalized.contains("income") || normalized.contains("bonus") -> "💰"
         normalized.contains("transfer") || normalized.contains("upi") || normalized.contains("sent") || normalized.contains("received") -> "🔄"
-        normalized.contains("salon") || normalized.contains("beauty") || normalized.contains("spa") -> "✨"
+        normalized.contains("salon") || normalized.contains("beauty") || normalized.contains("spa") || normalized.contains("grooming") || normalized.contains("barber") -> "✂️"
+        normalized.contains("domestic") || normalized.contains("maid") || normalized.contains("cook") || normalized.contains("laundry") || normalized.contains("dhobi") -> "🧹"
+        normalized.contains("pooja") || normalized.contains("puja") || normalized.contains("temple") || normalized.contains("mandir") || normalized.contains("devotion") -> "🪔"
         normalized.contains("pet") || normalized.contains("vet") -> "🐾"
         normalized.contains("subscription") -> "🔁"
         normalized.contains("gift") || normalized.contains("donation") -> "🎁"
@@ -827,6 +853,9 @@ fun TransactionItem(
     categorySource: String = "Default",
     isRecurring: Boolean = false,
     isAnomaly: Boolean = false,
+    method: String = "",
+    accountLast4: String? = null,
+    source: String = "",
     onClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -882,6 +911,40 @@ fun TransactionItem(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+                    }
+
+                    // Instant Payment App / Fusion Badge
+                    val isFusedOrApp = source.contains("fusion", ignoreCase = true) ||
+                            source.contains("notification", ignoreCase = true) ||
+                            method in listOf("Google Pay", "Paytm", "PhonePe", "CRED", "Amazon Pay", "BHIM", "UPI")
+
+                    if (isFusedOrApp && method.isNotBlank()) {
+                        Surface(
+                            color = Color(0xFF10B981).copy(alpha = 0.12f),
+                            shape = CircleShape
+                        ) {
+                            Text(
+                                text = "⚡ ${method.uppercase()}",
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.5.sp, fontWeight = FontWeight.Bold),
+                                color = Color(0xFF10B981)
+                            )
+                        }
+                    }
+
+                    // Bank Account Last 4 Digits
+                    if (!accountLast4.isNullOrBlank()) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                            shape = CircleShape
+                        ) {
+                            Text(
+                                text = "••$accountLast4",
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.5.sp, fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
 
                     if (isRecurring) {

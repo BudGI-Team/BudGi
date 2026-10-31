@@ -24,6 +24,9 @@ import com.app.data.sms.MerchantNormalizer
 import com.app.data.sms.ParsedSmsTransaction
 import com.app.data.sms.SmsReader
 import com.app.data.sms.SmsTransactionParser
+import com.app.data.sms.TransactionFusionEngine
+import com.app.data.sms.FusionResult
+import com.app.data.sms.MerchantLearningService
 import com.app.domain.model.AnalyticsSummary
 import com.app.domain.model.Budget
 import com.app.domain.model.Transaction
@@ -81,7 +84,9 @@ class TransactionRepositoryImpl @Inject constructor(
     private val tokenManager: TokenManager,
     private val llmSmsFallbackService: LlmSmsFallbackService,
     private val notificationHelper: NotificationHelper,
-    private val database: AppDatabase
+    private val database: AppDatabase,
+    private val fusionEngine: TransactionFusionEngine,
+    private val merchantLearningService: MerchantLearningService
 ) : TransactionRepository {
     private val gson = Gson()
     private val splitType = object : TypeToken<List<SplitDetail>>() {}.type
@@ -120,6 +125,9 @@ class TransactionRepositoryImpl @Inject constructor(
             )
         }
     }
+
+    override fun observeDetectedBankAccounts(): Flow<List<com.app.data.local.dao.DetectedBankSummary>> =
+        transactionDao.observeDetectedBankAccounts()
 
     override fun observeBudgets(): Flow<List<Budget>> {
         return combine(
@@ -404,6 +412,39 @@ class TransactionRepositoryImpl @Inject constructor(
             }
             if (!seenInBatch.add(batchKey)) return@mapNotNull null
 
+            // ── Gap 2: Pre-Debit Mandates (e-NACH, UPI Autopay, SI Warnings) ──
+            if (tx.isPreDebitMandate || com.app.data.sms.BankSmsTemplateEngine.isPreDebitMandate(tx.rawSms)) {
+                Log.i(TAG, "Captured pre-debit mandate warning of ₹${tx.amount} for ${tx.merchant}")
+                val merchantName = tx.merchant ?: "Merchant"
+                notificationHelper.showUpcomingMandateAlert(
+                    merchant = merchantName,
+                    amount = tx.amount,
+                    accountLast4 = tx.accountLast4
+                )
+                // Skip inserting as completed expense today so it doesn't duplicate tomorrow's real debit!
+                return@mapNotNull null
+            }
+
+            // ── Gap 1: UPI Auto-Reversal & Failed Payment Refund Reconciliation ──
+            if (tx.isReversal || com.app.data.sms.BankSmsTemplateEngine.isReversalOrRefund(tx.rawSms)) {
+                val minTime = tx.transactionDate - 48 * 60 * 60 * 1000L
+                val maxTime = tx.transactionDate + 10 * 60 * 1000L
+                val matchingDebit = transactionDao.findMatchingDebitForRefund(
+                    amount = tx.amount,
+                    accountLast4 = tx.accountLast4,
+                    minTimestamp = minTime,
+                    maxTimestamp = maxTime
+                )
+                if (matchingDebit != null) {
+                    Log.i(TAG, "Auto-reconciled reversal of ₹${tx.amount} with debit ID ${matchingDebit.id}")
+                    transactionDao.markTransactionReversed(matchingDebit.id)
+                    val merchantName = matchingDebit.alias ?: matchingDebit.merchant ?: tx.merchant ?: "Vendor"
+                    notificationHelper.showRefundReconciledAlert(merchantName, tx.amount)
+                    // Skip inserting duplicate credit/income! Debit was neutralized.
+                    return@mapNotNull null
+                }
+            }
+
             // Tier 1: Reference number dedup (strongest — unique per financial transaction)
             if (!tx.referenceNumber.isNullOrBlank()) {
                 val refCount = transactionDao.countByReferenceNumber(tx.referenceNumber.trim())
@@ -468,38 +509,45 @@ class TransactionRepositoryImpl @Inject constructor(
                     .format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
             } else null
 
-            // ── Merchant Learning: auto-categorize from learned mappings ──
-            val merchantKey = MerchantNormalizer.getBestKey(tx.merchant, tx.upiId)
-            val normalizedMerchant = MerchantNormalizer.normalize(merchantKey)
-            var finalCategory = tx.category
-            var categorySource = "Rule"
-            var alias: String? = null
-            var isReviewed = true
-
-            if (normalizedMerchant.isNotBlank()) {
-                val learnedMapping = merchantMappingDao.findByNormalizedMerchant(normalizedMerchant)
-                if (learnedMapping != null) {
-                    finalCategory = learnedMapping.category
-                    categorySource = "UserLearned"
-                    alias = learnedMapping.alias
-                    isReviewed = true
-                    try {
-                        merchantMappingDao.incrementFrequency(
-                            normalizedMerchant = normalizedMerchant,
-                            timestamp = tx.transactionDate,
-                            updatedAt = Instant.now().toString()
-                        )
-                    } catch (_: Exception) {}
-                } else {
-                    if (finalCategory in listOf("Others", "Other", "Transfer") && tx.type == "debit") {
-                        isReviewed = false
-                    }
-                }
-            } else {
-                if (finalCategory in listOf("Others", "Other", "Transfer") && tx.type == "debit") {
-                    isReviewed = false
-                }
+            // ── Phase 5: Transaction Fusion with Payment App Notifications ──
+            val fusionResult = fusionEngine.onSmsParsed(
+                amount = tx.amount,
+                type = tx.type,
+                timestamp = tx.transactionDate,
+                merchant = tx.merchant,
+                referenceNumber = tx.referenceNumber
+            )
+            val effectiveMerchant = when (fusionResult) {
+                is FusionResult.Enrich -> fusionResult.cleanMerchant ?: tx.merchant
+                else -> tx.merchant
             }
+            val effectiveMethod = when (fusionResult) {
+                is FusionResult.Enrich -> fusionResult.sourceApp
+                else -> tx.method
+            }
+
+            // ── Phase 4: Merchant Learning & Multi-Signal Categorization ──
+            val merchantKey = MerchantNormalizer.getBestKey(effectiveMerchant, tx.upiId)
+            val normalizedMerchant = MerchantNormalizer.normalize(merchantKey)
+
+            val txHour = try {
+                Instant.ofEpochMilli(tx.transactionDate).atZone(ZoneId.systemDefault()).hour
+            } catch (_: Exception) { -1 }
+
+            val decision = merchantLearningService.decideCategory(
+                merchant = effectiveMerchant,
+                upiId = tx.upiId,
+                normalizedMerchant = normalizedMerchant,
+                amount = tx.amount,
+                type = tx.type,
+                message = tx.rawSms,
+                hourOfDay = txHour
+            )
+
+            val finalCategory = decision.category
+            val categorySource = decision.source
+            val isReviewed = !decision.needsReview
+            val alias = decision.alias
 
             val txType = if (tx.type == "debit") "expense" else "income"
 
@@ -534,14 +582,14 @@ class TransactionRepositoryImpl @Inject constructor(
                 category = finalCategory,
                 categorySource = categorySource,
                 description = "SMS: ${tx.merchant ?: tx.upiId ?: tx.sender}",
-                merchant = tx.merchant,
+                merchant = effectiveMerchant,
                 normalizedMerchant = normalizedMerchant.ifBlank { null },
                 date = dateStr,
-                source = "sms",
+                source = if (fusionResult is FusionResult.Enrich) "fused_notification_sms" else "sms",
                 syncStatus = "pending_create",
                 isRecurring = tx.isRecurring,
                 isAnomaly = isAnomaly,
-                method = tx.method,
+                method = effectiveMethod,
                 timestamp = tx.transactionDate,
                 sender = tx.sender,
                 upiId = tx.upiId,
@@ -649,10 +697,12 @@ class TransactionRepositoryImpl @Inject constructor(
                 .map { entity ->
                     com.app.data.remote.dto.PendingUpdate(
                         id = entity.serverId!!,
-                        changes = mapOf(
-                            "category" to entity.category,
-                            "categorySource" to entity.categorySource
-                        ),
+                        changes = buildMap {
+                            put("category", entity.category)
+                            put("categorySource", entity.categorySource)
+                            entity.alias?.let { put("alias", it) }
+                            put("isReviewed", entity.isReviewed)
+                        },
                         updatedAt = entity.updatedAt ?: java.time.Instant.now().toString()
                     )
                 },
@@ -816,12 +866,29 @@ class TransactionRepositoryImpl @Inject constructor(
      * Prevents generating duplicate SQLite auto-increment IDs.
      */
     private suspend fun upsertTransactionDto(dto: TransactionDto) {
+        fun mergeWithExisting(existing: TransactionEntity): TransactionEntity {
+            val bestTimestamp = if (existing.timestamp > 0) existing.timestamp else dto.timestamp ?: DateUtils.parseIsoDateToMillis(dto.date)
+            val preservedAlias = existing.alias ?: dto.alias
+            val preservedCategory = if (existing.categorySource == "UserLearned") existing.category else dto.category
+            val preservedSource = if (existing.categorySource == "UserLearned") existing.categorySource else (dto.categorySource ?: "Default")
+            val preservedReviewed = existing.isReviewed || (dto.isReviewed ?: true)
+
+            return dto.toEntity().copy(
+                id = existing.id,
+                serverId = dto.id ?: existing.serverId,
+                timestamp = bestTimestamp,
+                alias = preservedAlias,
+                category = preservedCategory,
+                categorySource = preservedSource,
+                isReviewed = preservedReviewed
+            )
+        }
+
         // 1. Check by serverId
         if (!dto.id.isNullOrBlank()) {
             val existing = transactionDao.getByServerId(dto.id)
             if (existing != null) {
-                val bestTimestamp = if (existing.timestamp > 0) existing.timestamp else dto.timestamp ?: DateUtils.parseIsoDateToMillis(dto.date)
-                transactionDao.insert(dto.toEntity().copy(id = existing.id, timestamp = bestTimestamp))
+                transactionDao.insert(mergeWithExisting(existing))
                 return
             }
         }
@@ -830,8 +897,7 @@ class TransactionRepositoryImpl @Inject constructor(
         if (!dto.clientId.isNullOrBlank()) {
             val existing = transactionDao.getByClientId(dto.clientId)
             if (existing != null) {
-                val bestTimestamp = if (existing.timestamp > 0) existing.timestamp else dto.timestamp ?: DateUtils.parseIsoDateToMillis(dto.date)
-                transactionDao.insert(dto.toEntity().copy(id = existing.id, serverId = dto.id, timestamp = bestTimestamp))
+                transactionDao.insert(mergeWithExisting(existing))
                 return
             }
         }
@@ -840,8 +906,7 @@ class TransactionRepositoryImpl @Inject constructor(
         if (!dto.referenceNumber.isNullOrBlank()) {
             val existing = transactionDao.getByReferenceNumber(dto.referenceNumber.trim())
             if (existing != null) {
-                val bestTimestamp = if (existing.timestamp > 0) existing.timestamp else dto.timestamp ?: DateUtils.parseIsoDateToMillis(dto.date)
-                transactionDao.insert(dto.toEntity().copy(id = existing.id, serverId = dto.id, timestamp = bestTimestamp))
+                transactionDao.insert(mergeWithExisting(existing))
                 return
             }
         }
@@ -850,8 +915,7 @@ class TransactionRepositoryImpl @Inject constructor(
         if (!dto.rawSms.isNullOrBlank()) {
             val existing = transactionDao.getByRawSms(dto.rawSms.trim())
             if (existing != null) {
-                val bestTimestamp = if (existing.timestamp > 0) existing.timestamp else dto.timestamp ?: DateUtils.parseIsoDateToMillis(dto.date)
-                transactionDao.insert(dto.toEntity().copy(id = existing.id, serverId = dto.id, timestamp = bestTimestamp))
+                transactionDao.insert(mergeWithExisting(existing))
                 return
             }
         }

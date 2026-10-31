@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import './DownloadModal.css';
 
-const LATEST_VERSION = 'v1.1.3';
+const LATEST_VERSION = 'v1.2.0';
 const APK_DOWNLOAD_URL = 'https://github.com/BudGI-Team/BudGi/releases/latest/download/BudGi.apk';
 const RELEASES_PAGE_URL = 'https://github.com/BudGI-Team/BudGi/releases';
 
@@ -27,7 +27,7 @@ export default function DownloadModal({ isOpen, onClose }) {
     setDownloadStarted(true);
     const link = document.createElement('a');
     link.href = APK_DOWNLOAD_URL;
-    link.download = 'BudGi-v1.1.3.apk';
+    link.download = 'BudGi-v1.2.0.apk';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -105,21 +105,29 @@ export default function DownloadModal({ isOpen, onClose }) {
                 </motion.div>
               )}
 
-              {/* Install Tips */}
+              {/* Google Play Protect & Installation Trust Guide */}
               <div
                 style={{
                   fontSize: '11.5px',
                   color: 'var(--text-muted, #94a3b8)',
-                  background: 'rgba(255, 255, 255, 0.03)',
-                  border: '1px solid rgba(255, 255, 255, 0.07)',
-                  borderRadius: '8px',
-                  padding: '9px 12px',
-                  lineHeight: 1.5,
-                  marginTop: '10px',
+                  background: 'rgba(16, 185, 129, 0.06)',
+                  border: '1px solid rgba(16, 185, 129, 0.22)',
+                  borderRadius: '10px',
+                  padding: '10px 13px',
+                  lineHeight: 1.55,
+                  marginTop: '12px',
                 }}
               >
-                <span style={{ fontWeight: 600, color: 'var(--text-secondary, #cbd5e1)' }}>Installation Tip:</span>{' '}
-                If prompted, toggle <strong>Allow from this source</strong> in browser settings. If updating from a USB debug or developer build, uninstall the older build first.
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', color: '#10B981', fontWeight: 600, fontSize: '12px' }}>
+                  <ShieldCheck size={15} />
+                  <span>100% Verified Safe • On-Device Financial Sandbox</span>
+                </div>
+                <div>
+                  <strong>Play Protect Tip:</strong> Because BudGi parses bank SMS locally on-device without cloud upload, Google Play Protect displays a standard verification notice for direct APKs. Simply tap <strong>"More details" → "Install anyway"</strong>. You do <em>not</em> need to disable Play Protect.
+                </div>
+                <div style={{ marginTop: '5px', opacity: 0.85 }}>
+                  If prompted by your browser, toggle <strong>"Allow from this source"</strong>.
+                </div>
               </div>
 
               {/* Secondary Options */}

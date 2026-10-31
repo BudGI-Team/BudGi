@@ -146,7 +146,7 @@ fun AIChatScreen(
                             val subtitle = if (uiState.healthScore != null) {
                                 "Score: ${uiState.healthScore}/100 • ${uiState.healthLabel ?: "Active"}"
                             } else {
-                                "AI Financial Assistant"
+                                "Financial Terminal • Autonomous Copilot"
                             }
                             Text(
                                 subtitle,
@@ -181,7 +181,7 @@ fun AIChatScreen(
                             AlertDialog(
                                 onDismissRequest = { showDeleteDialog = false },
                                 title = { Text("Clear History") },
-                                text = { Text("Are you sure you want to clear your AI chat history? This cannot be undone.") },
+                                text = { Text("Are you sure you want to clear your Copilot session history? This cannot be undone.") },
                                 confirmButton = {
                                     TextButton(onClick = {
                                         showDeleteDialog = false
@@ -554,7 +554,7 @@ private fun EmptyStateHint(onSuggestionClick: (String) -> Unit = {}) {
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            "Your intelligent financial assistant & spending strategist",
+            "Autonomous Financial Operating System & Command Terminal",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -578,22 +578,22 @@ private fun EmptyStateHint(onSuggestionClick: (String) -> Unit = {}) {
             Triple(
                 Icons.Outlined.Shield,
                 Color(0xFF10B981),
-                "Can I afford to spend ₹4,500 on weekend dining?"
+                "> /afford Can I spend ₹4,500 on weekend dining?"
             ),
             Triple(
                 Icons.Outlined.PieChart,
                 Color(0xFF38BDF8),
-                "Analyze my spending & suggest optimized budget limits"
+                "> /budget Auto-calibrate smart limits based on spending"
             ),
             Triple(
                 Icons.Outlined.SwapHoriz,
                 Color(0xFFF59E0B),
-                "Check for category overspends and auto-rebalance"
+                "> /rebalance Rebalance strained budgets from surplus"
             ),
             Triple(
                 Icons.AutoMirrored.Outlined.TrendingUp,
                 Color(0xFFA855F7),
-                "Simulate 30-day cashflow runway & daily burn rate"
+                "> /forecast 30-day cashflow runway & burn rate"
             )
         )
 

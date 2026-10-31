@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,7 +70,88 @@ fun DeviceScreen(onBack: () -> Unit) {
                     }
                     Text("This Device", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                 }
+
+                Spacer(modifier = Modifier.height(28.dp))
+
+                Text("PARSING & CATEGORIZATION ENGINES", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f), RoundedCornerShape(20.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                        .padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    EngineFeatureRow(
+                        title = "Bank Template Engine",
+                        subtitle = "15+ Indian Banks (HDFC, SBI, ICICI, Axis, Kotak, BOB, PNB)",
+                        status = "Active",
+                        badgeColor = Color(0xFF10B981)
+                    )
+                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+                    EngineFeatureRow(
+                        title = "UPI Merchant Intelligence",
+                        subtitle = "300+ Verified Merchant Brands & QR Resolvers",
+                        status = "Active",
+                        badgeColor = Color(0xFF10B981)
+                    )
+                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+                    EngineFeatureRow(
+                        title = "Multi-Signal Categorizer",
+                        subtitle = "Weighted keywords, time-of-day & amount brackets",
+                        status = "Active",
+                        badgeColor = Color(0xFF10B981)
+                    )
+                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+                    EngineFeatureRow(
+                        title = "Cross-App Payment Fusion",
+                        subtitle = "GPay, Paytm, PhonePe, CRED auto-deduplication",
+                        status = "Active",
+                        badgeColor = Color(0xFF10B981)
+                    )
+                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+                    EngineFeatureRow(
+                        title = "100% On-Device Privacy",
+                        subtitle = "Zero bank SMS or payment data leaves your device",
+                        status = "Protected",
+                        badgeColor = Color(0xFF3B82F6)
+                    )
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun EngineFeatureRow(
+    title: String,
+    subtitle: String,
+    status: String,
+    badgeColor: Color
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Surface(
+            color = badgeColor.copy(alpha = 0.12f),
+            shape = androidx.compose.foundation.shape.CircleShape
+        ) {
+            Text(
+                text = status.uppercase(),
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold
+                ),
+                color = badgeColor
+            )
         }
     }
 }

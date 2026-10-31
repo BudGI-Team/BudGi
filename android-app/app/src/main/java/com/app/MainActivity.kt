@@ -217,6 +217,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (::appUpdateManager.isInitialized) {
+            appUpdateManager.checkPendingInstall()
+        }
         if (tokenManager.isBiometricEnabled && !isAuthenticated.value) {
             showPrompt.value = true
             window.decorView.postDelayed({

@@ -141,10 +141,23 @@ class AppUpdateManager @Inject constructor(
         }
     }
 
+    private var pendingApkFile: File? = null
+
+    fun checkPendingInstall(): Boolean {
+        val file = pendingApkFile ?: return false
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || context.packageManager.canRequestPackageInstalls()) {
+            pendingApkFile = null
+            installApk(file)
+            return true
+        }
+        return false
+    }
+
     fun installApk(apkFile: File) {
         try {
             // Check Android 8.0+ unknown sources permission
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
+                pendingApkFile = apkFile
                 val settingsIntent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
                     data = Uri.parse("package:${context.packageName}")
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

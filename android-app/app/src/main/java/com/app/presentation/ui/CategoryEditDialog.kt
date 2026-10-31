@@ -44,6 +44,11 @@ import com.app.utils.DateUtils
 private val DEFAULT_SYSTEM_CATEGORIES = listOf(
     "Food & Dining",
     "Groceries",
+    "Vegetables & Mandi",
+    "Dairy & Milk",
+    "Personal Care & Salon",
+    "Domestic & Services",
+    "Pooja & Devotion",
     "Shopping",
     "Transport",
     "Subscriptions",
@@ -75,7 +80,7 @@ fun CategoryEditDialog(
     transaction: Transaction,
     availableCategories: List<String> = emptyList(),
     onDismiss: () -> Unit,
-    onConfirm: (newCategory: String, applyToPast: Boolean, applyToFuture: Boolean) -> Unit
+    onConfirm: (newCategory: String, newAlias: String?, applyToPast: Boolean, applyToFuture: Boolean) -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
     var selectedCategory by rememberSaveable { mutableStateOf(transaction.category) }
@@ -84,6 +89,7 @@ fun CategoryEditDialog(
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var showCustomInput by rememberSaveable { mutableStateOf(false) }
     var customCategoryName by rememberSaveable { mutableStateOf("") }
+    var merchantAliasInput by rememberSaveable { mutableStateOf(transaction.alias ?: "") }
 
     // Dynamically derive unique categories from real user history merged with system classifier categories
     val dynamicCategoryList = remember(availableCategories) {
@@ -676,7 +682,7 @@ fun CategoryEditDialog(
                     text = if (hasChanged) "Apply Changes" else "Save Category Rule",
                     enabled = canSubmit,
                     onClick = {
-                        onConfirm(selectedCategory, applyToPast, applyToFuture)
+                        onConfirm(selectedCategory, merchantAliasInput.trim().ifBlank { null }, applyToPast, applyToFuture)
                     },
                     icon = {
                         val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f

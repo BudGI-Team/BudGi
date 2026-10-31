@@ -39,7 +39,9 @@ data class ParsedSmsTransaction(
     val smsDate: Long,            // original SMS timestamp from Android
     val sender: String,
     val rawSms: String,
-    val isRecurring: Boolean = false
+    val isRecurring: Boolean = false,
+    val isReversal: Boolean = false,
+    val isPreDebitMandate: Boolean = false
 )
 
 /**
@@ -49,7 +51,9 @@ data class ParsedSmsTransaction(
  */
 @Singleton
 class SmsTransactionParser @Inject constructor(
-    private val categoryClassifier: TransactionCategoryClassifier
+    private val categoryClassifier: TransactionCategoryClassifier,
+    private val bankTemplateEngine: BankSmsTemplateEngine,
+    private val upiRegistry: UpiMerchantRegistry
 ) {
     // ── Amount patterns ─────────────────────────────────────────────────
     private val amountPatterns = listOf(
@@ -128,6 +132,56 @@ class SmsTransactionParser @Inject constructor(
         val classification = classify(trimmed, sender)
         if (classification != SmsClassification.TRANSACTION) return null
 
+        // 1b. Phase 1: Try Bank-Specific Template Engine first (95%+ accuracy)
+        val templateResult = bankTemplateEngine.tryParse(trimmed, sender, timestamp)
+        if (templateResult != null) {
+            val tAmount = templateResult.amount
+            if (tAmount in 1.0..10_000_000.0) {
+                val tRefNumber = templateResult.referenceNumber ?: extractRefNumber(trimmed)
+                val tDedupKey = if (!tRefNumber.isNullOrBlank()) "ref:$tRefNumber" else computeHash(sender, tAmount, timestamp)
+                if (processedHashes.add(tDedupKey)) {
+                    val tSenderAmountKey = "${sender.lowercase(Locale.US)}|${"%.2f".format(tAmount)}"
+                    val tLastSeen = recentTimestamps[tSenderAmountKey]
+                    if (tLastSeen == null || kotlin.math.abs(timestamp - tLastSeen) >= 30_000L) {
+                        recentTimestamps[tSenderAmountKey] = timestamp
+
+                        // Phase 2: UPI Registry lookup for clean merchant identity
+                        val regInfo = upiRegistry.lookup(templateResult.upiId ?: templateResult.merchant)
+                        val finalMerchant = regInfo?.merchantName ?: templateResult.merchant ?: extractMerchant(trimmed, templateResult.upiId)
+                        val finalCategory = regInfo?.category ?: categoryClassifier.classify(
+                            message = trimmed,
+                            upiId = templateResult.upiId,
+                            merchant = finalMerchant
+                        )
+                        val bodyDate = extractDateFromBody(trimmed, timestamp)
+                        val txDate = bodyDate ?: timestamp
+
+                        val isMandate = templateResult.isPreDebitMandate || BankSmsTemplateEngine.isPreDebitMandate(trimmed)
+                        val isRev = templateResult.isReversal || BankSmsTemplateEngine.isReversalOrRefund(trimmed)
+
+                        return ParsedSmsTransaction(
+                            amount = tAmount,
+                            type = if (isRev) "credit" else templateResult.type,
+                            category = finalCategory,
+                            method = templateResult.method,
+                            merchant = finalMerchant,
+                            upiId = templateResult.upiId,
+                            referenceNumber = tRefNumber,
+                            accountLast4 = templateResult.accountLast4,
+                            availableBalance = templateResult.availableBalance,
+                            transactionDate = txDate,
+                            smsDate = timestamp,
+                            sender = sender,
+                            rawSms = trimmed.take(500),
+                            isRecurring = detectRecurring(trimmed.lowercase(Locale.US), finalMerchant, finalCategory),
+                            isReversal = isRev,
+                            isPreDebitMandate = isMandate
+                        )
+                    }
+                }
+            }
+        }
+
         // 2. Extract amount
         val amount = extractAmount(trimmed) ?: return null
         if (amount < 1.0 || amount > 10_000_000.0) return null
@@ -176,9 +230,12 @@ class SmsTransactionParser @Inject constructor(
         // 11. Best date
         val transactionDate = bodyDate ?: timestamp
 
+        val isMandateFallback = BankSmsTemplateEngine.isPreDebitMandate(trimmed)
+        val isRevFallback = BankSmsTemplateEngine.isReversalOrRefund(trimmed)
+
         return ParsedSmsTransaction(
             amount = amount,
-            type = type,
+            type = if (isRevFallback) "credit" else type,
             category = category,
             method = method,
             merchant = merchant,
@@ -190,7 +247,9 @@ class SmsTransactionParser @Inject constructor(
             smsDate = timestamp,
             sender = sender,
             rawSms = trimmed.take(500),
-            isRecurring = isRecurring
+            isRecurring = isRecurring,
+            isReversal = isRevFallback,
+            isPreDebitMandate = isMandateFallback
         )
     }
 

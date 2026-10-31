@@ -298,7 +298,59 @@ interface TransactionDao {
         WHERE id IN (:ids)
     """)
     suspend fun markAllReviewed(ids: List<Long>)
+
+    // ── Reversal & Refund Auto-Reconciliation ──
+    @Query("""
+        SELECT * FROM transactions 
+        WHERE type = 'expense' 
+          AND amount = :amount 
+          AND (:accountLast4 IS NULL OR accountLast4 = :accountLast4)
+          AND timestamp BETWEEN :minTimestamp AND :maxTimestamp
+          AND syncStatus != 'pending_delete'
+        ORDER BY timestamp DESC 
+        LIMIT 1
+    """)
+    suspend fun findMatchingDebitForRefund(
+        amount: Double,
+        accountLast4: String?,
+        minTimestamp: Long,
+        maxTimestamp: Long
+    ): TransactionEntity?
+
+    @Query("""
+        UPDATE transactions 
+        SET category = 'Reversal', 
+            description = description || ' (Reversed / Refunded)',
+            syncStatus = CASE WHEN syncStatus = 'synced' THEN 'pending_update' ELSE syncStatus END 
+        WHERE id = :id
+    """)
+    suspend fun markTransactionReversed(id: Long)
+
+    // ── Detected Bank Accounts & Liquidity Matrix ──
+    @Query("""
+        SELECT 
+            t1.accountLast4,
+            t1.sender,
+            (SELECT t_bal.availableBalance FROM transactions t_bal 
+             WHERE t_bal.accountLast4 = t1.accountLast4 AND t_bal.availableBalance IS NOT NULL 
+             ORDER BY t_bal.timestamp DESC LIMIT 1) as latestBalance,
+            MAX(t1.timestamp) as latestTimestamp,
+            COUNT(*) as transactionCount
+        FROM transactions t1
+        WHERE t1.accountLast4 IS NOT NULL AND t1.accountLast4 != '' AND t1.syncStatus != 'pending_delete'
+        GROUP BY t1.accountLast4
+        ORDER BY latestTimestamp DESC
+    """)
+    fun observeDetectedBankAccounts(): kotlinx.coroutines.flow.Flow<List<DetectedBankSummary>>
 }
+
+data class DetectedBankSummary(
+    val accountLast4: String,
+    val sender: String,
+    val latestBalance: Double?,
+    val latestTimestamp: Long,
+    val transactionCount: Int
+)
 data class CategoryTotal(
     val category: String,
     val total: Double

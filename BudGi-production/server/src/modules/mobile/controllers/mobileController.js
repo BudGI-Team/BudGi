@@ -114,15 +114,15 @@ const LATEST_APK_URL = `https://github.com/${GITHUB_REPO}/releases/latest/downlo
 const RELEASES_PAGE_URL = `https://github.com/${GITHUB_REPO}/releases`;
 
 const APP_UPDATE_INFO = {
-  latestVersionCode: 5,
-  latestVersionName: '1.1.3',
+  latestVersionCode: 6,
+  latestVersionName: '1.2.0',
   minSupportedVersionCode: 1,
   forceUpdate: false,
   maintenance: false,
   apkUrl: LATEST_APK_URL,
   apkChecksumSha256: null,
   releasesUrl: RELEASES_PAGE_URL,
-  releaseNotes: '• Resolved startup launch crash across all Android devices\n• Full Theme & BiometricPrompt compatibility\n• Enhanced offline storage & background sync\n• Live Render cloud sync',
+  releaseNotes: '• Precision Engine: 15+ Indian bank template parsers (HDFC, SBI, ICICI, Axis, Kotak, etc.)\n• 1-Tap Lockscreen & Shade payment categorization with zero clutter\n• Indian Market Categories: Vegetables/Mandi, Dairy/Milk, Salon, Domestic Help, Pooja\n• 1-Click Micro-Spend Catch-Up Deck with smart category suggestions\n• Auto-reconciled UPI refunds & pre-debit mandate warning shield\n• Real-time multi-account bank liquidity ledger & seamless in-app updater',
   publishedAt: new Date().toISOString(),
 };
 

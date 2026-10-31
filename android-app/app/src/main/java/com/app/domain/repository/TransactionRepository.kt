@@ -9,6 +9,7 @@ interface TransactionRepository {
     fun observeAllTransactions(): Flow<List<Transaction>>
     fun observeCurrentMonthAnalytics(): Flow<AnalyticsSummary>
     fun observeBudgets(): Flow<List<Budget>>
+    fun observeDetectedBankAccounts(): Flow<List<com.app.data.local.dao.DetectedBankSummary>>
 
     suspend fun createTransaction(transaction: Transaction): Result<Transaction>
     suspend fun updateTransaction(id: String, changes: Map<String, Any>): Result<Unit>

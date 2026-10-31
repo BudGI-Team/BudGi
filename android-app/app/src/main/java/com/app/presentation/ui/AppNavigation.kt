@@ -80,186 +80,56 @@ private val destinations = listOf(
  * Continuous 3D flipping AI coin icon that alternates between the BudGi Logo
  * and glowing capital letters "AI", giving a rich, futuristic AI identity in the dock.
  */
+/**
+ * Precision Developer-Friendly Copilot Icon
+ * Clean, geometric obsidian terminal node with subtle emerald telemetry ring when active.
+ * Zero tacky flipping 3D letters or artificial AI gimmicks.
+ */
 @Composable
 fun BudGiCopilotCoinIcon(
     selected: Boolean,
     isDark: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "copilot_coin_transition")
-
-    // Continuous 3D coin flip: dwell on BudGi logo, smooth flip, dwell on "AI", smooth flip back
-    val rotationY by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = keyframes {
-                durationMillis = 3600
-                0f at 0 using FastOutSlowInEasing
-                0f at 1100 using FastOutSlowInEasing // Dwells on BudGi logo for 1.1s
-                180f at 1800 using FastOutSlowInEasing // Smooth 3D flip over 0.7s
-                180f at 2900 using FastOutSlowInEasing // Dwells on futuristic "AI" for 1.1s
-                360f at 3600 using FastOutSlowInEasing // Smooth 3D flip back
-            },
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "coin_rotation_y"
-    )
-
-    // Breathing AI pulse for the aura glow
-    val aiAuraPulse by infiniteTransition.animateFloat(
-        initialValue = 0.65f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "copilot_aura_pulse"
-    )
-
-    val normalizedAngle = (rotationY % 360f).let { if (it < 0f) it + 360f else it }
-    val isFront = normalizedAngle < 90f || normalizedAngle > 270f
-    val density = LocalDensity.current
+    val emerald = Color(0xFF10B981)
+    val cyan = Color(0xFF06B6D4)
 
     Box(
         modifier = modifier.size(24.dp),
         contentAlignment = Alignment.Center
     ) {
-        // Ambient Neon AI Glow Behind Coin when selected
-        if (selected) {
+        Surface(
+            shape = CircleShape,
+            color = if (isDark) Color(0xFF0F172A) else Color.White,
+            border = androidx.compose.foundation.BorderStroke(
+                width = if (selected) 1.5.dp else 1.dp,
+                brush = if (selected) {
+                    Brush.sweepGradient(listOf(emerald, cyan, emerald))
+                } else {
+                    Brush.linearGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+                        )
+                    )
+                }
+            ),
+            shadowElevation = if (selected) 4.dp else 0.dp,
+            modifier = Modifier.fillMaxSize()
+        ) {
             Box(
                 modifier = Modifier
-                    .size(28.dp)
-                    .graphicsLayer {
-                        scaleX = aiAuraPulse
-                        scaleY = aiAuraPulse
-                    }
-                    .background(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                Color(0xFF00E5FF).copy(alpha = 0.45f),
-                                Color(0xFF0284C7).copy(alpha = 0.25f),
-                                Color.Transparent
-                            )
-                        ),
-                        shape = CircleShape
-                    )
-            )
-        }
-
-        // 3D Flipping Coin Body
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    this.rotationY = rotationY
-                    cameraDistance = 16f * density.density
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            if (isFront) {
-                // ── FRONT FACE: BudGi Logo Coin ──
-                Surface(
-                    shape = CircleShape,
-                    color = if (isDark) Color(0xFF0F172A) else Color.White,
-                    border = androidx.compose.foundation.BorderStroke(
-                        width = 1.2.dp,
-                        brush = Brush.sweepGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.primary,
-                                Color(0xFF10B981),
-                                Color(0xFF38BDF8),
-                                MaterialTheme.colorScheme.primary
-                            )
-                        )
-                    ),
-                    shadowElevation = if (selected) 4.dp else 1.dp,
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(2.5.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.budgi_logo),
-                            contentDescription = "BudGi Logo Coin",
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape)
-                        )
-                    }
-                }
-            } else {
-                // ── BACK FACE: Capital Letters "AI" Coin ──
-                // Counter-rotate 180° so text is read correctly from left to right
-                Box(
+                    .fillMaxSize()
+                    .padding(3.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.budgi_logo),
+                    contentDescription = "BudGi Copilot",
                     modifier = Modifier
                         .fillMaxSize()
-                        .graphicsLayer {
-                            this.rotationY = 180f
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = if (isDark) Color(0xFF090D16) else Color(0xFF0F172A),
-                        border = androidx.compose.foundation.BorderStroke(
-                            width = 1.3.dp,
-                            brush = Brush.sweepGradient(
-                                listOf(
-                                    Color(0xFF00E5FF),
-                                    Color(0xFF0284C7),
-                                    Color(0xFF38BDF8),
-                                    Color(0xFF00E5FF)
-                                )
-                            )
-                        ),
-                        shadowElevation = 4.dp,
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            // Radial core AI sheen
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(
-                                        Brush.radialGradient(
-                                            listOf(
-                                                Color(0xFF0284C7).copy(alpha = 0.35f),
-                                                Color.Transparent
-                                            )
-                                        )
-                                    )
-                            )
-
-                            // Capital Letter "AI" in bold futuristic typography
-                            Text(
-                                text = "AI",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 11.5.sp,
-                                    letterSpacing = 0.5.sp,
-                                    fontWeight = FontWeight.Black
-                                ),
-                                color = Color(0xFF00F0FF)
-                            )
-
-                            // Micro Neural Star Dot in top right corner
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(top = 3.dp, end = 3.dp)
-                                    .size(2.5.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF38BDF8))
-                            )
-                        }
-                    }
-                }
+                        .clip(CircleShape)
+                )
             }
         }
     }

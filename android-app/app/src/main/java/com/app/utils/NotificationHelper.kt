@@ -28,6 +28,7 @@ import com.app.di.ApplicationScope
 class NotificationHelper @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val notificationDao: NotificationDao,
+    private val classifier: com.app.data.sms.TransactionCategoryClassifier,
     @param:ApplicationScope private val scope: CoroutineScope
 ) {
     private val notificationManager = NotificationManagerCompat.from(context)
@@ -221,7 +222,7 @@ class NotificationHelper @Inject constructor(
     ) {
         if (!hasNotificationPermission()) return
 
-        val isExpense = type == "expense" || type == "debit"
+        val isExpense = type.equals("expense", ignoreCase = true) || type.equals("debit", ignoreCase = true)
         val formattedAmount = "₹${"%,.2f".format(amount)}"
         val cleanMerchant = com.app.data.sms.MerchantNormalizer.extractFriendlyName(merchant, upiId)
         val notifId = (NOTIFY_ID_TRANSACTION + (cleanMerchant.hashCode() and 0xFFFF) + (amount.toInt() and 0xFFFF))
@@ -235,20 +236,40 @@ class NotificationHelper @Inject constructor(
 
         if (isExpense) {
             val isLearned = categorySource.equals("UserLearned", ignoreCase = true)
+            val calendar = java.util.Calendar.getInstance()
+            val hour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
 
             if (isLearned) {
-                // Breathing, peaceful auto-categorized notification
-                val title = "Spent $formattedAmount at $cleanMerchant"
+                // Known vendor: Quiet, clean auto-categorized notification with 1-tap confirm or edit
+                val title = "$formattedAmount paid to $cleanMerchant"
                 val subText = "Auto • $category"
                 val body = "Recognized from past visits and categorized as $category."
 
                 builder.setContentTitle(title)
                     .setSubText(subText)
-                    .setContentText("Categorized as $category")
+                    .setContentText("Tagged as $category")
                     .setStyle(NotificationCompat.BigTextStyle().bigText(body))
                     .setPriority(NotificationCompat.PRIORITY_LOW)
 
-                // Quick Change action
+                // 1-Tap Confirm Action (marks reviewed and auto-dismisses notification)
+                val keepIntent = android.content.Intent(context, com.app.data.sms.NotificationActionReceiver::class.java).apply {
+                    action = com.app.data.sms.NotificationActionReceiver.ACTION_QUICK_CATEGORIZE
+                    putExtra(com.app.data.sms.NotificationActionReceiver.EXTRA_TX_ID, transactionId)
+                    putExtra(com.app.data.sms.NotificationActionReceiver.EXTRA_CATEGORY, category)
+                    putExtra(com.app.data.sms.NotificationActionReceiver.EXTRA_MERCHANT, cleanMerchant)
+                    putExtra(com.app.data.sms.NotificationActionReceiver.EXTRA_UPI_ID, upiId)
+                    putExtra(com.app.data.sms.NotificationActionReceiver.EXTRA_AMOUNT, amount)
+                    putExtra(com.app.data.sms.NotificationActionReceiver.EXTRA_NOTIFICATION_ID, notifId)
+                }
+                val keepPending = android.app.PendingIntent.getBroadcast(
+                    context,
+                    notifId + 1,
+                    keepIntent,
+                    android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+                )
+                builder.addAction(R.drawable.ic_notif_check, "✓ Keep $category", keepPending)
+
+                // Change Action
                 val editIntent = android.content.Intent(context, com.app.MainActivity::class.java).apply {
                     action = android.content.Intent.ACTION_VIEW
                     data = android.net.Uri.parse("budgi://transactions")
@@ -256,73 +277,102 @@ class NotificationHelper @Inject constructor(
                 }
                 val editPending = android.app.PendingIntent.getActivity(
                     context,
-                    notifId + 10,
+                    notifId + 2,
                     editIntent,
                     android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
                 )
                 builder.addAction(R.drawable.ic_notif_edit, "Change", editPending)
 
             } else {
-                // Interactive 1-tap categorization actions for roadside / P2P payment
-                val title = "Spent $formattedAmount at $cleanMerchant"
-                val subText = "Tap to Categorize"
-                val body = "Quick-tag this spend to keep your budget 100% accurate:"
+                // Fresh / Unlearned payment: Clean 1-tap categorization
+                // Derive top smart suggestions using Multi-Signal Intelligence & Indian Market rules
+                val suggestions = classifier.getTopCategorySuggestions(
+                    message = cleanMerchant,
+                    upiId = upiId,
+                    merchant = cleanMerchant,
+                    amount = amount,
+                    hourOfDay = hour,
+                    limit = 2
+                )
+                val primarySuggestion = suggestions.firstOrNull() ?: category.takeIf { it != "Others" } ?: "Food & Dining"
+                val alternateSuggestion = suggestions.getOrNull(1)
+
+                val title = "$formattedAmount paid to $cleanMerchant"
+                val subText = "Instant Tracker • UPI"
+                val shortBody = "Suggested: $primarySuggestion • 1-tap tag:"
+                val detailBody = "Paid $formattedAmount to $cleanMerchant.\nSuggested: $primarySuggestion.\nTap a category below to tag in 1 tap:"
 
                 builder.setContentTitle(title)
                     .setSubText(subText)
-                    .setContentText("Tap a category below")
-                    .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+                    .setContentText(shortBody)
+                    .setStyle(NotificationCompat.BigTextStyle().bigText(detailBody))
                     .setPriority(NotificationCompat.PRIORITY_HIGH)
 
-                // Dynamic 3 quick actions based on Time of Day & Amount
-                val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-                data class QuickOption(val categoryName: String, val label: String, val iconRes: Int)
-
-                val options = when {
-                    hour in 6..11 -> listOf(
-                        QuickOption("Food & Dining", "☕ Chai/Food", R.drawable.ic_notif_food),
-                        QuickOption("Groceries", "🥦 Grocery", R.drawable.ic_notif_grocery),
-                        QuickOption("Transport", "🛺 Travel", R.drawable.ic_notif_transit)
-                    )
-                    hour in 12..16 -> listOf(
-                        QuickOption("Food & Dining", "🍽️ Food", R.drawable.ic_notif_food),
-                        QuickOption("Groceries", "🥦 Grocery", R.drawable.ic_notif_grocery),
-                        QuickOption("Shopping", "🛍️ Shopping", R.drawable.ic_notif_shopping)
-                    )
-                    hour in 17..20 -> listOf(
-                        QuickOption("Food & Dining", "☕ Snacks", R.drawable.ic_notif_food),
-                        QuickOption("Groceries", "🥦 Sabzi/Grocery", R.drawable.ic_notif_grocery),
-                        QuickOption("Transport", "🛺 Travel", R.drawable.ic_notif_transit)
-                    )
-                    else -> listOf(
-                        QuickOption("Food & Dining", "🍽️ Food", R.drawable.ic_notif_food),
-                        QuickOption("Groceries", "🥦 Grocery", R.drawable.ic_notif_grocery),
-                        QuickOption("Entertainment", "🍿 Fun", R.drawable.ic_notif_shopping)
-                    )
+                fun getActionIcon(cat: String): Int {
+                    val lower = cat.lowercase()
+                    return when {
+                        lower.contains("food") || lower.contains("dining") -> R.drawable.ic_notif_food
+                        lower.contains("travel") || lower.contains("transport") -> R.drawable.ic_notif_transit
+                        lower.contains("shopping") -> R.drawable.ic_notif_shopping
+                        else -> R.drawable.ic_notif_grocery
+                    }
                 }
 
-                for ((idx, opt) in options.withIndex()) {
-                    val actionIntent = android.content.Intent(context, com.app.data.sms.NotificationActionReceiver::class.java).apply {
+                // Action 1: Primary suggested category (1-tap complete)
+                val action1Intent = android.content.Intent(context, com.app.data.sms.NotificationActionReceiver::class.java).apply {
+                    action = com.app.data.sms.NotificationActionReceiver.ACTION_QUICK_CATEGORIZE
+                    putExtra(com.app.data.sms.NotificationActionReceiver.EXTRA_TX_ID, transactionId)
+                    putExtra(com.app.data.sms.NotificationActionReceiver.EXTRA_CATEGORY, primarySuggestion)
+                    putExtra(com.app.data.sms.NotificationActionReceiver.EXTRA_MERCHANT, cleanMerchant)
+                    putExtra(com.app.data.sms.NotificationActionReceiver.EXTRA_UPI_ID, upiId)
+                    putExtra(com.app.data.sms.NotificationActionReceiver.EXTRA_AMOUNT, amount)
+                    putExtra(com.app.data.sms.NotificationActionReceiver.EXTRA_NOTIFICATION_ID, notifId)
+                }
+                val pending1 = android.app.PendingIntent.getBroadcast(
+                    context,
+                    notifId + 10,
+                    action1Intent,
+                    android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+                )
+                builder.addAction(getActionIcon(primarySuggestion), "✓ $primarySuggestion", pending1)
+
+                // Action 2: Top Alternate suggestion
+                if (alternateSuggestion != null && alternateSuggestion != primarySuggestion) {
+                    val action2Intent = android.content.Intent(context, com.app.data.sms.NotificationActionReceiver::class.java).apply {
                         action = com.app.data.sms.NotificationActionReceiver.ACTION_QUICK_CATEGORIZE
                         putExtra(com.app.data.sms.NotificationActionReceiver.EXTRA_TX_ID, transactionId)
-                        putExtra(com.app.data.sms.NotificationActionReceiver.EXTRA_CATEGORY, opt.categoryName)
+                        putExtra(com.app.data.sms.NotificationActionReceiver.EXTRA_CATEGORY, alternateSuggestion)
                         putExtra(com.app.data.sms.NotificationActionReceiver.EXTRA_MERCHANT, cleanMerchant)
                         putExtra(com.app.data.sms.NotificationActionReceiver.EXTRA_UPI_ID, upiId)
                         putExtra(com.app.data.sms.NotificationActionReceiver.EXTRA_AMOUNT, amount)
                         putExtra(com.app.data.sms.NotificationActionReceiver.EXTRA_NOTIFICATION_ID, notifId)
                     }
-                    val pending = android.app.PendingIntent.getBroadcast(
+                    val pending2 = android.app.PendingIntent.getBroadcast(
                         context,
-                        notifId + (idx + 1) * 7,
-                        actionIntent,
+                        notifId + 20,
+                        action2Intent,
                         android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
                     )
-                    builder.addAction(opt.iconRes, opt.label, pending)
+                    builder.addAction(getActionIcon(alternateSuggestion), alternateSuggestion, pending2)
                 }
+
+                // Action 3: More options
+                val moreIntent = android.content.Intent(context, com.app.MainActivity::class.java).apply {
+                    action = android.content.Intent.ACTION_VIEW
+                    data = android.net.Uri.parse("budgi://transactions")
+                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
+                val pendingMore = android.app.PendingIntent.getActivity(
+                    context,
+                    notifId + 30,
+                    moreIntent,
+                    android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+                )
+                builder.addAction(R.drawable.ic_notif_edit, "More", pendingMore)
             }
         } else {
             // Income / Credit
-            val title = "💰 Received $formattedAmount"
+            val title = "$formattedAmount received"
             val shortContent = "Credited from $cleanMerchant"
             val detailBody = "Received $formattedAmount from $cleanMerchant.\nCredited to your account and logged by BudGi."
 
@@ -467,6 +517,89 @@ class NotificationHelper @Inject constructor(
                 )
             }
         } catch (_: SecurityException) { /* Permission revoked */ }
+    }
+
+    /**
+     * Show a refund / reversal auto-reconciled notification.
+     */
+    fun showRefundReconciledAlert(merchant: String, amount: Double) {
+        if (!hasNotificationPermission()) return
+
+        val formattedAmount = "₹${"%,.2f".format(amount)}"
+        val title = "✓ Refund Reconciled: $formattedAmount"
+        val shortContent = "Refund from $merchant matched with original spend"
+        val detailBody = "$formattedAmount debited earlier at $merchant was refunded/reversed.\nBudGi neutralized the debit expense so your spending stats remain 100% accurate."
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_TRANSACTIONS)
+            .setSmallIcon(R.drawable.budgi_logo)
+            .setColor(BRAND_COLOR_SUCCESS)
+            .setContentTitle(title)
+            .setSubText("Auto-Reconciliation")
+            .setContentText(shortContent)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(detailBody))
+            .setContentIntent(getLaunchPendingIntent("transactions"))
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setAutoCancel(true)
+            .setShowWhen(true)
+            .build()
+
+        try {
+            val notifId = (NOTIFY_ID_TRANSACTION + (merchant.hashCode() and 0xFFFF) + 7)
+            notificationManager.notify(notifId, notification)
+            scope.launch {
+                notificationDao.insert(
+                    NotificationEntity(
+                        icon = "✓",
+                        title = title,
+                        body = detailBody,
+                        type = "refund_reconciled",
+                        timestamp = System.currentTimeMillis()
+                    )
+                )
+            }
+        } catch (_: SecurityException) {}
+    }
+
+    /**
+     * Show an upcoming auto-debit / mandate alert.
+     */
+    fun showUpcomingMandateAlert(merchant: String, amount: Double, accountLast4: String?) {
+        if (!hasNotificationPermission()) return
+
+        val formattedAmount = "₹${"%,.2f".format(amount)}"
+        val acctText = if (!accountLast4.isNullOrBlank()) " from A/c ••$accountLast4" else ""
+        val title = "⏰ Mandate Alert: $formattedAmount"
+        val shortContent = "Upcoming auto-debit for $merchant$acctText"
+        val detailBody = "A scheduled mandate/autopay of $formattedAmount towards $merchant is scheduled for debit$acctText.\nEnsure sufficient balance or cancel with merchant/bank if unwanted."
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_BUDGET_ALERTS)
+            .setSmallIcon(R.drawable.budgi_logo)
+            .setColor(BRAND_COLOR_WARNING)
+            .setContentTitle(title)
+            .setSubText("Autopay Warning")
+            .setContentText(shortContent)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(detailBody))
+            .setContentIntent(getLaunchPendingIntent("transactions"))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setShowWhen(true)
+            .build()
+
+        try {
+            val notifId = (NOTIFY_ID_ALERT + (merchant.hashCode() and 0xFFFF) + 13)
+            notificationManager.notify(notifId, notification)
+            scope.launch {
+                notificationDao.insert(
+                    NotificationEntity(
+                        icon = "⏰",
+                        title = title,
+                        body = detailBody,
+                        type = "mandate_alert",
+                        timestamp = System.currentTimeMillis()
+                    )
+                )
+            }
+        } catch (_: SecurityException) {}
     }
 
     /**

@@ -250,7 +250,10 @@ fun BudgetScreen(
                     }
                 } else {
                     item {
-                        EmptyBudgetsCard(onAddClick = { showAddDialog = true })
+                        EmptyBudgetsCard(
+                            onAddClick = { showAddDialog = true },
+                            onAutoCalibrateClick = { viewModel.autoCalibrateBudgets() }
+                        )
                     }
                 }
             }
@@ -543,7 +546,10 @@ private fun CategoryBudgetCard(
 }
 
 @Composable
-private fun EmptyBudgetsCard(onAddClick: () -> Unit) {
+private fun EmptyBudgetsCard(
+    onAddClick: () -> Unit,
+    onAutoCalibrateClick: () -> Unit = {}
+) {
     val isDark = LocalIsDarkTheme.current
     val cardBg = if (isDark) DarkColors.BgElevated else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
     val cardBorder = if (isDark) DarkColors.Border else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
@@ -558,26 +564,26 @@ private fun EmptyBudgetsCard(onAddClick: () -> Unit) {
                 cardBorder,
                 RoundedCornerShape(20.dp)
             )
-            .clickable { onAddClick() }
-            .padding(28.dp),
+            .padding(24.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(54.dp)
+                    .size(52.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                    .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.Add,
+                    imageVector = Icons.Outlined.PieChart,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(28.dp)
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(26.dp)
                 )
             }
             Text(
@@ -587,11 +593,37 @@ private fun EmptyBudgetsCard(onAddClick: () -> Unit) {
                 color = MaterialTheme.colorScheme.onBackground
             )
             Text(
-                text = "Tap here or '+ Add Budget' below to set category limits and keep your spending on track.",
-                style = MaterialTheme.typography.bodyMedium,
+                text = "Calibrate limits automatically from your spending history or add custom limits.",
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Button(
+                    onClick = onAutoCalibrateClick,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF10B981),
+                        contentColor = Color.White
+                    ),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("⚡ Auto-Calibrate", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+                }
+                OutlinedButton(
+                    onClick = onAddClick,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("+ Manual Add", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold))
+                }
+            }
         }
     }
 }
