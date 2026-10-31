@@ -287,7 +287,7 @@ fun SettingsScreen(
                         SettingsRow(
                             icon = Icons.Outlined.Info,
                             title = "About BudGi",
-                            subtitle = "Version 1.1.0",
+                            subtitle = "Version ${com.app.BuildConfig.VERSION_NAME}",
                             onClick = { onNavigate?.invoke("profile_about") }
                         )
                         HorizontalDivider(

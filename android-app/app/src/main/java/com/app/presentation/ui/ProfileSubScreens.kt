@@ -1235,7 +1235,7 @@ fun AboutScreen(onBack: () -> Unit) {
                     .padding(horizontal = 12.dp, vertical = 4.dp)
             ) {
                 Text(
-                    text = "Version 2.0.0 (2026 Edition)",
+                    text = "Version ${com.app.BuildConfig.VERSION_NAME} (2026 Edition)",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
