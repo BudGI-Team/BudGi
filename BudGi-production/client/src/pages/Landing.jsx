@@ -790,7 +790,7 @@ export default function Landing() {
                   >
                     <PlayStoreSVG />
                     <div className="app-btn-text">
-                      <span className="app-btn-sub">Native APK · v1.2.0</span>
+                      <span className="app-btn-sub">Native APK · v1.2.1</span>
                       <span className="app-btn-main">Download Android Native</span>
                     </div>
                   </MagneticBtn>

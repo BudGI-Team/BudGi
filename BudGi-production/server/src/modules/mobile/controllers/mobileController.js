@@ -114,15 +114,15 @@ const LATEST_APK_URL = `https://github.com/${GITHUB_REPO}/releases/latest/downlo
 const RELEASES_PAGE_URL = `https://github.com/${GITHUB_REPO}/releases`;
 
 const APP_UPDATE_INFO = {
-  latestVersionCode: 6,
-  latestVersionName: '1.2.0',
+  latestVersionCode: 7,
+  latestVersionName: '1.2.1',
   minSupportedVersionCode: 1,
   forceUpdate: false,
   maintenance: false,
   apkUrl: LATEST_APK_URL,
   apkChecksumSha256: null,
   releasesUrl: RELEASES_PAGE_URL,
-  releaseNotes: '• Precision Engine: 15+ Indian bank template parsers (HDFC, SBI, ICICI, Axis, Kotak, etc.)\n• 1-Tap Lockscreen & Shade payment categorization with zero clutter\n• Indian Market Categories: Vegetables/Mandi, Dairy/Milk, Salon, Domestic Help, Pooja\n• 1-Click Micro-Spend Catch-Up Deck with smart category suggestions\n• Auto-reconciled UPI refunds & pre-debit mandate warning shield\n• Real-time multi-account bank liquidity ledger & seamless in-app updater',
+  releaseNotes: '• Sleek Compact Cards: Clean 62dp cards with zero vertical stretching or text wrapping\n• Redesigned Micro-Spend Catch-Up: Obsidian-themed 1-click expense triage deck\n• Custom Categories & Merchants: Manual recipient renaming and instant category creator\n• Persistent Profile Avatar: Offline-first profile picture preserved across app restarts\n• Precision SMS Engine: 15+ Indian bank parsers & 1-tap lockscreen notifications',
   publishedAt: new Date().toISOString(),
 };
 
