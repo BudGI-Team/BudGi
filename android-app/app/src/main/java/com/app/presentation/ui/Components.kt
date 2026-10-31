@@ -867,22 +867,25 @@ fun TransactionItem(
         modifier = modifier
             .fillMaxWidth()
             .bouncyClick { onClick() }
-            .glassCard(cornerRadius = 18.dp)
+            .glassCard(cornerRadius = 16.dp)
             .semantics(mergeDescendants = true) {
                 contentDescription = "Transaction at $merchant for $amount on $date, category $category."
             }
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            CategoryBadgeIcon(category = category, size = 44.dp, iconSize = 20.dp)
+            CategoryBadgeIcon(category = category, size = 42.dp, iconSize = 20.dp)
 
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
                 Text(
                     text = merchant,
-                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
+                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 14.5.sp),
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onBackground,
                     maxLines = 1,
@@ -891,45 +894,27 @@ fun TransactionItem(
                 Spacer(modifier = Modifier.height(3.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically, 
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     // Sleek minimal category micro-pill
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
                         modifier = Modifier
                             .clip(CircleShape)
-                            .background(catColor.copy(alpha = 0.10f))
-                            .border(0.8.dp, catColor.copy(alpha = 0.20f), CircleShape)
-                            .padding(horizontal = 7.dp, vertical = 2.dp)
+                            .background(catColor.copy(alpha = 0.12f))
+                            .border(0.6.dp, catColor.copy(alpha = 0.25f), CircleShape)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
                             text = category,
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.5.sp),
                             fontWeight = FontWeight.Medium,
                             color = catColor,
                             maxLines = 1,
+                            softWrap = false,
                             overflow = TextOverflow.Ellipsis
                         )
-                    }
-
-                    // Instant Payment App / Fusion Badge
-                    val isFusedOrApp = source.contains("fusion", ignoreCase = true) ||
-                            source.contains("notification", ignoreCase = true) ||
-                            method in listOf("Google Pay", "Paytm", "PhonePe", "CRED", "Amazon Pay", "BHIM", "UPI")
-
-                    if (isFusedOrApp && method.isNotBlank()) {
-                        Surface(
-                            color = Color(0xFF10B981).copy(alpha = 0.12f),
-                            shape = CircleShape
-                        ) {
-                            Text(
-                                text = "⚡ ${method.uppercase()}",
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.5.sp, fontWeight = FontWeight.Bold),
-                                color = Color(0xFF10B981)
-                            )
-                        }
                     }
 
                     // Bank Account Last 4 Digits
@@ -942,51 +927,54 @@ fun TransactionItem(
                                 text = "••$accountLast4",
                                 modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
                                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.5.sp, fontWeight = FontWeight.Medium),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }
 
+                    // Recurring indicator (subtle icon + text)
                     if (isRecurring) {
                         Surface(
                             color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f),
                             shape = CircleShape
                         ) {
-                            Text(
-                                text = "RECURRING",
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.SemiBold),
-                                color = MaterialTheme.colorScheme.tertiary
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Repeat,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.tertiary,
+                                    modifier = Modifier.size(9.dp)
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text(
+                                    text = "RECURRING",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.5.sp, fontWeight = FontWeight.SemiBold),
+                                    color = MaterialTheme.colorScheme.tertiary,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
                         }
-                    }
-                    if (isAnomaly) {
+                    } else if (isAnomaly) {
                         Surface(
                             color = Color(0xFFF59E0B).copy(alpha = 0.15f),
                             shape = CircleShape
                         ) {
                             Text(
                                 text = "SPIKE",
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
-                                color = Color(0xFFF59E0B)
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.5.sp, fontWeight = FontWeight.Bold),
+                                color = Color(0xFFF59E0B),
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
-                    }
-                    if (categorySource == "UserLearned") {
-                        Surface(
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                            shape = CircleShape
-                        ) {
-                            Text(
-                                text = "LEARNED",
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.sp, fontWeight = FontWeight.Medium),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    if (splitDetails.isNotEmpty()) {
+                    } else if (splitDetails.isNotEmpty()) {
                         val settledCount = splitDetails.count { it.settled }
                         val allSettled = settledCount == splitDetails.size
                         Surface(
@@ -994,29 +982,51 @@ fun TransactionItem(
                             shape = CircleShape
                         ) {
                             Text(
-                                text = if (allSettled) "SPLIT (SETTLED)" else "SPLIT ($settledCount/${splitDetails.size})",
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.SemiBold),
-                                color = if (allSettled) CategoryColors.Groceries else MaterialTheme.colorScheme.primary
+                                text = if (allSettled) "SPLIT (✓)" else "SPLIT ($settledCount/${splitDetails.size})",
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.5.sp, fontWeight = FontWeight.SemiBold),
+                                color = if (allSettled) CategoryColors.Groceries else MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    } else if (categorySource == "UserLearned") {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                            shape = CircleShape
+                        ) {
+                            Text(
+                                text = "LEARNED",
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.sp, fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }
                 }
             }
 
-            Column(horizontalAlignment = Alignment.End) {
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.Center
+            ) {
                 Text(
                     text = if (isExpense) "-₹$amount" else "+₹$amount",
                     style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
                     fontWeight = FontWeight.SemiBold,
                     color = if (isExpense) MaterialTheme.colorScheme.onBackground else CategoryColors.Groceries,
-                    maxLines = 1
+                    maxLines = 1,
+                    softWrap = false
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = date,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    softWrap = false
                 )
             }
         }

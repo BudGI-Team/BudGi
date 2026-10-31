@@ -1,6 +1,8 @@
 package com.app.data.repository
 
+import android.content.Context
 import android.util.Log
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.app.data.local.TokenManager
 import com.app.data.local.dao.UserDao
 import com.app.data.local.entity.UserEntity
@@ -21,6 +23,7 @@ import javax.inject.Singleton
 
 @Singleton
 class AuthRepositoryImpl @Inject constructor(
+    @param:ApplicationContext private val context: Context,
     private val authApi: AuthApiService,
     private val tokenManager: TokenManager,
     private val userDao: UserDao,
@@ -354,7 +357,12 @@ class AuthRepositoryImpl @Inject constructor(
                 mood = mood ?: localUser.mood,
                 avatar = avatar ?: localUser.avatar,
                 onboarded = onboarded ?: localUser.onboarded,
-                profileImage = if (profileImage == "") null else (profileImage ?: localUser.profileImage)
+                profileImage = if (profileImage == "") {
+                tokenManager.profilePictureUri = null
+                val localF = java.io.File(context.filesDir, "budgi_profile_avatar.jpg")
+                if (localF.exists()) localF.delete()
+                null
+            } else (profileImage ?: localUser.profileImage ?: tokenManager.profilePictureUri)
             )
             userDao.insertUser(updatedLocal)
         }
@@ -408,18 +416,41 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     override suspend fun uploadProfilePicture(fileBytes: ByteArray, fileName: String, mimeType: String): Result<User> = runCatching {
-        val requestBody = fileBytes.toRequestBody(mimeType.toMediaTypeOrNull())
-        val part = MultipartBody.Part.createFormData("profileImage", fileName, requestBody)
+        // 1. Immediately cache avatar locally to persistent internal app storage
+        val localAvatarFile = java.io.File(context.filesDir, "budgi_profile_avatar.jpg")
+        try {
+            localAvatarFile.writeBytes(fileBytes)
+            tokenManager.profilePictureUri = localAvatarFile.absolutePath
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed caching avatar locally", e)
+        }
 
-        val response = authApi.uploadProfilePicture(part)
-        if (!response.isSuccessful) throw Exception("Failed to upload profile picture")
+        // 2. Optimistically update local database
+        val localUser = userDao.getLoggedInUserSync()
+        if (localUser != null) {
+            userDao.insertUser(localUser.copy(profileImage = localAvatarFile.absolutePath))
+        }
 
-        val body = response.body() ?: throw Exception("Empty response")
-        val userDto = body.data?.user ?: throw Exception("User data missing")
+        // 3. Network sync (tolerant to Render cold-starts/sleep)
+        try {
+            val requestBody = fileBytes.toRequestBody(mimeType.toMediaTypeOrNull())
+            val part = MultipartBody.Part.createFormData("profileImage", fileName, requestBody)
 
-        tokenManager.cachedUser = userDto
-        saveUserLocally(userDto)
-        userDto.toDomain()
+            val response = authApi.uploadProfilePicture(part)
+            if (response.isSuccessful) {
+                val body = response.body()
+                val userDto = body?.data?.user
+                if (userDto != null) {
+                    tokenManager.cachedUser = userDto
+                    saveUserLocally(userDto)
+                    return@runCatching userDto.toDomain()
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Remote profile upload deferred: ${e.message}")
+        }
+
+        userDao.getLoggedInUserSync()?.toDomain() ?: throw Exception("Failed to save avatar locally")
     }
 
     override suspend fun forgotPassword(email: String): Result<Unit> = runCatching {
@@ -447,6 +478,14 @@ class AuthRepositoryImpl @Inject constructor(
     // ── Helpers ──────────────────────────────────────────────────────────
 
     private suspend fun saveUserLocally(dto: UserDto) {
+        val existingLocal = userDao.getLoggedInUserSync()
+        val persistentProfileImage = when {
+            !dto.profileImage.isNullOrBlank() && !dto.profileImage.startsWith("/data") -> dto.profileImage
+            existingLocal?.profileImage != null && !existingLocal.profileImage.isNullOrBlank() -> existingLocal.profileImage
+            !tokenManager.profilePictureUri.isNullOrBlank() -> tokenManager.profilePictureUri
+            else -> dto.profileImage
+        }
+
         userDao.logoutAll()
         userDao.insertUser(UserEntity(
             uid = dto.id,
@@ -460,7 +499,7 @@ class AuthRepositoryImpl @Inject constructor(
             monthlyIncome = dto.monthlyIncome,
             financialGoal = dto.financialGoal,
             plan = dto.plan,
-            profileImage = dto.profileImage,
+            profileImage = persistentProfileImage,
             healthScore = dto.healthScore,
             isEmailVerified = dto.isEmailVerified,
             onboarded = dto.onboarded,
@@ -501,10 +540,19 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     private fun getAbsoluteProfileImageUrl(url: String?): String? {
-        if (url.isNullOrBlank() || url.equals("null", ignoreCase = true) || url.equals("undefined", ignoreCase = true)) return null
-        if (url.startsWith("http")) return url
+        val target = if (url.isNullOrBlank() || url.equals("null", ignoreCase = true) || url.equals("undefined", ignoreCase = true)) {
+            tokenManager.profilePictureUri
+        } else {
+            url
+        }
+        if (target.isNullOrBlank() || target.equals("null", ignoreCase = true) || target.equals("undefined", ignoreCase = true)) return null
+        if (target.startsWith("http://") || target.startsWith("https://")) return target
+        if (target.startsWith("file://") || target.startsWith("content://")) return target
+        if (target.startsWith("/data/") || target.startsWith("/storage/") || java.io.File(target).exists()) {
+            return if (target.startsWith("file://")) target else "file://$target"
+        }
         val baseUrl = com.app.BuildConfig.API_BASE_URL.trimEnd('/')
-        val path = if (url.startsWith("/")) url else "/$url"
+        val path = if (target.startsWith("/")) target else "/$target"
         return "$baseUrl$path"
     }
 

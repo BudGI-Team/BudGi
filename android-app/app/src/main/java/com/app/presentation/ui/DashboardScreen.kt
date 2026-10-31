@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.*
@@ -2190,15 +2191,15 @@ fun MicroSpendCatchUpCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
+            .clip(RoundedCornerShape(18.dp))
             .background(cardBg)
-            .border(1.dp, cardBorder, RoundedCornerShape(22.dp))
-            .padding(18.dp)
+            .border(1.dp, cardBorder, RoundedCornerShape(18.dp))
+            .padding(14.dp)
             .semantics(mergeDescendants = true) {
                 contentDescription = "Micro-Spend Catch-Up: ${unreviewedTransactions.size} transactions to categorize"
             }
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             // Header Row: Minimal Icon + Title + Queue Indicator + Dismiss / Nav
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -2207,54 +2208,43 @@ fun MicroSpendCatchUpCard(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.weight(1f)
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(34.dp)
-                            .clip(RoundedCornerShape(10.dp))
+                            .size(32.dp)
+                            .clip(RoundedCornerShape(8.dp))
                             .background(if (isDark) Color(0xFF181C26) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
-                            .border(1.dp, if (isDark) Color(0xFF282D3C) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), RoundedCornerShape(10.dp)),
+                            .border(1.dp, if (isDark) Color(0xFF282D3C) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), RoundedCornerShape(8.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.ReceiptLong,
+                            imageVector = Icons.AutoMirrored.Outlined.ReceiptLong,
                             contentDescription = null,
                             tint = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(17.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                     }
 
-                    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(
-                                text = "Micro-Spend Catch-Up",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground
-                            )
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = Color(0xFF10B981).copy(alpha = 0.15f),
-                                border = androidx.compose.foundation.BorderStroke(0.6.dp, Color(0xFF10B981).copy(alpha = 0.35f))
-                            ) {
-                                Text(
-                                    text = "${validIndex + 1} of ${unreviewedTransactions.size}",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF10B981),
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "Micro-Spend Catch-Up",
+                            style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.5.sp),
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                         Text(
                             text = "1-click smart triage • Learns vendor memory",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -2263,31 +2253,48 @@ fun MicroSpendCatchUpCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
+                    // Queue Pill (BudGi Theme)
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        border = androidx.compose.foundation.BorderStroke(0.6.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+                    ) {
+                        Text(
+                            text = "${validIndex + 1}/${unreviewedTransactions.size}",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+
                     if (unreviewedTransactions.size > 1) {
                         IconButton(
                             onClick = {
                                 if (currentIndex > 0) currentIndex-- else currentIndex = unreviewedTransactions.size - 1
                             },
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(26.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.ChevronLeft,
                                 contentDescription = "Previous",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                         IconButton(
                             onClick = {
                                 if (currentIndex < unreviewedTransactions.size - 1) currentIndex++ else currentIndex = 0
                             },
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(26.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.ChevronRight,
                                 contentDescription = "Next",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
@@ -2298,13 +2305,13 @@ fun MicroSpendCatchUpCard(
                             val idToDismiss = currentTx.clientId?.ifEmpty { currentTx.id } ?: currentTx.id
                             onDismissReview(idToDismiss)
                         },
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(26.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Dismiss",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(15.dp)
                         )
                     }
                 }
@@ -2314,10 +2321,10 @@ fun MicroSpendCatchUpCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(12.dp))
                     .background(if (isDark) Color(0xFF161922) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
-                    .border(0.8.dp, if (isDark) Color(0xFF222632) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f), RoundedCornerShape(14.dp))
-                    .padding(14.dp)
+                    .border(0.8.dp, if (isDark) Color(0xFF222632) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                    .padding(11.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -2325,7 +2332,7 @@ fun MicroSpendCatchUpCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(
-                        verticalArrangement = Arrangement.spacedBy(3.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
                         modifier = Modifier.weight(1f)
                     ) {
                         if (isEditingName) {
@@ -2340,17 +2347,17 @@ fun MicroSpendCatchUpCard(
                                     textStyle = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(48.dp)
+                                        .height(44.dp)
                                 )
                                 IconButton(
                                     onClick = { isEditingName = false },
-                                    modifier = Modifier.size(28.dp)
+                                    modifier = Modifier.size(26.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Check,
                                         contentDescription = "Done",
-                                        tint = Color(0xFF10B981),
-                                        modifier = Modifier.size(16.dp)
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(15.dp)
                                     )
                                 }
                             }
@@ -2361,7 +2368,7 @@ fun MicroSpendCatchUpCard(
                             ) {
                                 Text(
                                     text = customAlias.ifBlank { friendlyName },
-                                    style = MaterialTheme.typography.bodyLarge,
+                                    style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface,
                                     maxLines = 1,
@@ -2372,7 +2379,7 @@ fun MicroSpendCatchUpCard(
                                     contentDescription = "Nickname vendor",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                     modifier = Modifier
-                                        .size(14.dp)
+                                        .size(13.dp)
                                         .clickable { isEditingName = true }
                                 )
                             }
@@ -2392,7 +2399,7 @@ fun MicroSpendCatchUpCard(
                         }
                         Text(
                             text = subtitleTag,
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -2404,12 +2411,14 @@ fun MicroSpendCatchUpCard(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.ExtraBold,
                         color = if (isDark) Color.White else MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.padding(start = 12.dp)
+                        modifier = Modifier.padding(start = 10.dp),
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }
 
-            // ── Primary 1-Click Smart Confirmation Button ──
+            // ── Primary 1-Click Smart Confirmation Button (BudGi Theme) ──
             Button(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -2421,26 +2430,28 @@ fun MicroSpendCatchUpCard(
                         currentIndex = 0
                     }
                 },
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF10B981),
-                    contentColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
                 ),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(44.dp)
+                    .height(40.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Check,
                     contentDescription = null,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(15.dp)
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = "Confirm $predictedCategory (1-Click)",
                     fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp
+                    fontSize = 12.5.sp,
+                    maxLines = 1,
+                    softWrap = false
                 )
             }
 
@@ -2457,10 +2468,10 @@ fun MicroSpendCatchUpCard(
                 )
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text(
                     text = "OR CHOOSE ALTERNATIVE",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.5.sp, letterSpacing = 0.8.sp),
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, letterSpacing = 0.6.sp),
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )
@@ -2482,7 +2493,7 @@ fun MicroSpendCatchUpCard(
                                     currentIndex = 0
                                 }
                             },
-                            shape = RoundedCornerShape(9.dp),
+                            shape = RoundedCornerShape(8.dp),
                             color = if (isDark) Color(0xFF1B1E26) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                             border = androidx.compose.foundation.BorderStroke(
                                 0.8.dp,
@@ -2492,13 +2503,14 @@ fun MicroSpendCatchUpCard(
                         ) {
                             Text(
                                 text = label,
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.5.sp),
                                 fontWeight = FontWeight.SemiBold,
                                 color = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface,
                                 textAlign = TextAlign.Center,
                                 maxLines = 1,
+                                softWrap = false,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(vertical = 7.dp, horizontal = 2.dp)
+                                modifier = Modifier.padding(vertical = 6.dp, horizontal = 2.dp)
                             )
                         }
                     }
@@ -2508,7 +2520,7 @@ fun MicroSpendCatchUpCard(
                         onClick = {
                             showCategoryPicker = true
                         },
-                        shape = RoundedCornerShape(9.dp),
+                        shape = RoundedCornerShape(8.dp),
                         color = if (isDark) Color(0xFF1B1E26) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                         border = androidx.compose.foundation.BorderStroke(
                             0.8.dp,
@@ -2518,12 +2530,13 @@ fun MicroSpendCatchUpCard(
                     ) {
                         Text(
                             text = "+ More",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF10B981),
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.5.sp),
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
                             textAlign = TextAlign.Center,
                             maxLines = 1,
-                            modifier = Modifier.padding(vertical = 7.dp, horizontal = 2.dp)
+                            softWrap = false,
+                            modifier = Modifier.padding(vertical = 6.dp, horizontal = 2.dp)
                         )
                     }
                 }

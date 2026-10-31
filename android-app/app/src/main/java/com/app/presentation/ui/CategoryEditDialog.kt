@@ -89,12 +89,23 @@ fun CategoryEditDialog(
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var showCustomInput by rememberSaveable { mutableStateOf(false) }
     var customCategoryName by rememberSaveable { mutableStateOf("") }
-    var merchantAliasInput by rememberSaveable { mutableStateOf(transaction.alias ?: "") }
+    val merchantDisplay = transaction.merchant
+        ?: transaction.upiId
+        ?: transaction.description.removePrefix("SMS: ").ifBlank { "Transaction" }
+
+    var merchantAliasInput by rememberSaveable { 
+        mutableStateOf(transaction.alias?.ifBlank { null } ?: merchantDisplay) 
+    }
 
     // Dynamically derive unique categories from real user history merged with system classifier categories
-    val dynamicCategoryList = remember(availableCategories) {
+    val dynamicCategoryList = remember(availableCategories, selectedCategory) {
         val userDerived = availableCategories.filter { it.isNotBlank() && !it.equals("All", ignoreCase = true) }
-        (userDerived + DEFAULT_SYSTEM_CATEGORIES).distinct()
+        val baseList = (userDerived + DEFAULT_SYSTEM_CATEGORIES).distinct()
+        if (selectedCategory.isNotBlank() && !baseList.contains(selectedCategory)) {
+            listOf(selectedCategory) + baseList
+        } else {
+            baseList
+        }
     }
 
     // Filter categories based on user query
@@ -102,10 +113,6 @@ fun CategoryEditDialog(
         if (searchQuery.isBlank()) dynamicCategoryList
         else dynamicCategoryList.filter { it.contains(searchQuery, ignoreCase = true) }
     }
-
-    val merchantDisplay = transaction.merchant
-        ?: transaction.upiId
-        ?: transaction.description.removePrefix("SMS: ").ifBlank { "Transaction" }
 
     val formattedAmount = "₹${"%,.2f".format(transaction.amount)}"
     val formattedDate = DateUtils.formatDisplayTime(transaction.date, transaction.timestamp)
@@ -231,25 +238,64 @@ fun CategoryEditDialog(
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.Top
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "MERCHANT / RECIPIENT",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                    letterSpacing = 0.6.sp
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = merchantDisplay,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = "MERCHANT / RECIPIENT NAME",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                        letterSpacing = 0.6.sp
+                                    )
+                                    Icon(
+                                        imageVector = Icons.Outlined.Edit,
+                                        contentDescription = "Edit Merchant",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        0.8.dp,
+                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(end = 12.dp)
+                                ) {
+                                    androidx.compose.foundation.text.BasicTextField(
+                                        value = merchantAliasInput,
+                                        onValueChange = { merchantAliasInput = it },
+                                        textStyle = MaterialTheme.typography.titleMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            fontSize = 15.sp
+                                        ),
+                                        singleLine = true,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        decorationBox = { innerTextField ->
+                                            if (merchantAliasInput.isBlank()) {
+                                                Text(
+                                                    text = merchantDisplay,
+                                                    style = MaterialTheme.typography.titleMedium.copy(
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                                        fontSize = 15.sp
+                                                    )
+                                                )
+                                            }
+                                            innerTextField()
+                                        }
+                                    )
+                                }
                             }
 
                             // Amount Pill
@@ -343,59 +389,153 @@ fun CategoryEditDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Search Input Box
-                Surface(
+                // Search Input Box + Custom Category Action
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
-                    )
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "Search",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp)
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
                         )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        androidx.compose.foundation.text.BasicTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(
-                                color = MaterialTheme.colorScheme.onSurface
-                            ),
-                            singleLine = true,
-                            modifier = Modifier.weight(1f),
-                            decorationBox = { innerTextField ->
-                                if (searchQuery.isEmpty()) {
-                                    Text(
-                                        text = "Search or enter category...",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Search",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            androidx.compose.foundation.text.BasicTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                    color = MaterialTheme.colorScheme.onSurface
+                                ),
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                                decorationBox = { innerTextField ->
+                                    if (searchQuery.isEmpty()) {
+                                        Text(
+                                            text = "Search category...",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            )
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(
+                                    onClick = { searchQuery = "" },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Clear",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
-                                innerTextField()
                             }
+                        }
+                    }
+
+                    // + Custom Category Toggle Button
+                    Surface(
+                        onClick = { showCustomInput = !showCustomInput },
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (showCustomInput) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface,
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (showCustomInput) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
                         )
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(
-                                onClick = { searchQuery = "" },
-                                modifier = Modifier.size(24.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "Add custom category",
+                                tint = if (showCustomInput) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Custom",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
+                                color = if (showCustomInput) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+
+                // Expandable Custom Category Input
+                if (showCustomInput) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            androidx.compose.foundation.text.BasicTextField(
+                                value = customCategoryName,
+                                onValueChange = { customCategoryName = it },
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                ),
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                                decorationBox = { innerTextField ->
+                                    if (customCategoryName.isBlank()) {
+                                        Text(
+                                            text = "Enter custom category name...",
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                            )
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            )
+                            Button(
+                                onClick = {
+                                    if (customCategoryName.isNotBlank()) {
+                                        val formatted = customCategoryName.trim().replaceFirstChar { it.uppercase() }
+                                        selectedCategory = formatted
+                                        showCustomInput = false
+                                        customCategoryName = ""
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    }
+                                },
+                                enabled = customCategoryName.isNotBlank(),
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                ),
+                                modifier = Modifier.height(34.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Clear",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                                Text("Add", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
