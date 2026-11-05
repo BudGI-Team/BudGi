@@ -99,6 +99,10 @@ export function WebSocketProvider({ children }) {
             qc.invalidateQueries({ queryKey: ['goals'] });
           }
 
+          if (msg.type === 'SPACE_UPDATED' || msg.type === 'space:updated') {
+            qc.invalidateQueries({ queryKey: ['spaces'] });
+          }
+
           // ── Alert & notification events ──
           if (msg.type === 'ALERT_NEW') {
             qc.invalidateQueries({ queryKey: ['alerts'] });

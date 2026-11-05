@@ -25,6 +25,7 @@ const api = axios.create({
   baseURL: getBaseURL(),
   timeout: 60000,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 });
 
 // Attach JWT on every request
@@ -87,15 +88,16 @@ api.interceptors.response.use(
 
       try {
         const storedRefresh = localStorage.getItem('budgi_refresh_token');
-        if (!storedRefresh) {
-          throw new Error('No refresh token available');
-        }
 
-        // Direct axios post to avoid recursive 401 interceptor
-        const res = await axios.post(`${api.defaults.baseURL}/api/v1/auth/refresh`, {
-          refreshToken: storedRefresh,
-          platform: 'web',
-        });
+        // Direct axios post with credentials so HttpOnly cookie is passed
+        const res = await axios.post(
+          `${api.defaults.baseURL}/api/v1/auth/refresh`,
+          {
+            refreshToken: storedRefresh || undefined,
+            platform: 'web',
+          },
+          { withCredentials: true }
+        );
 
         const data = res.data?.data || res.data;
         const newToken = data.token;
@@ -286,6 +288,15 @@ export const goalsApi = {
   update: (id, data) => api.put(`/api/v1/goals/${id}`, data).then((r) => r.data),
   addSavings: (id, amount) => api.put(`/api/v1/goals/${id}`, { addAmount: amount }).then((r) => r.data),
   remove: (id) => api.delete(`/api/v1/goals/${id}`).then((r) => r.data),
+};
+
+// ── Collaborative Spaces ──────────────────────────────────────────────────────
+export const spacesApi = {
+  list: () => api.get('/api/v1/spaces').then((r) => r.data),
+  getDetails: (id) => api.get(`/api/v1/spaces/${id}`).then((r) => r.data),
+  create: (data) => api.post('/api/v1/spaces', data).then((r) => r.data),
+  join: (code) => api.post(`/api/v1/spaces/join/${code}`).then((r) => r.data),
+  addGoal: (id, data) => api.post(`/api/v1/spaces/${id}/goals`, data).then((r) => r.data),
 };
 
 export default api;

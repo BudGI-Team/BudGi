@@ -482,7 +482,7 @@ export default function Transactions() {
                   >
                     <td className="txn-date">{format(new Date(tx.date), 'dd MMM yyyy')}</td>
                     <td className="txn-desc">
-                      <div className="txn-title">{tx.merchant || tx.description || 'Uncategorized'}</div>
+                      <div className="txn-title">{tx.alias || tx.merchant || tx.description || 'Uncategorized'}</div>
                       {tx.description && tx.merchant && <div className="txn-sub">{tx.description}</div>}
                       {tx.splitDetails?.length > 0 && (
                         <div
@@ -569,7 +569,7 @@ export default function Transactions() {
                   <div className="txn-card-header">
                     <CategoryAvatar category={tx.category} size={38} />
                     <div className="txn-card-main">
-                      <div className="txn-card-title">{tx.merchant || tx.description || 'Uncategorized'}</div>
+                      <div className="txn-card-title">{tx.alias || tx.merchant || tx.description || 'Uncategorized'}</div>
                       <div className="txn-card-date" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
                         <CategoryPill category={tx.category} size="xs" />
                         <span style={{ color: 'var(--text-muted)' }}>•</span>

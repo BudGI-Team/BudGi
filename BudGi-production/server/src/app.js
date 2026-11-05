@@ -80,7 +80,26 @@ app.use(
   }),
 );
 
-// ── 6. Body parsing ───────────────────────────────────────────────────────────
+// ── 6. Body & Cookie parsing ──────────────────────────────────────────────────
+app.use((req, _res, next) => {
+  req.cookies = {};
+  const cookieHeader = req.headers.cookie;
+  if (cookieHeader) {
+    cookieHeader.split(';').forEach((cookie) => {
+      const parts = cookie.split('=');
+      const key = parts[0]?.trim();
+      const val = parts.slice(1).join('=')?.trim();
+      if (key && val) {
+        try {
+          req.cookies[key] = decodeURIComponent(val);
+        } catch {
+          req.cookies[key] = val;
+        }
+      }
+    });
+  }
+  next();
+});
 app.use(express.json({ limit: '2mb' })); // increased for SMS batch imports
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 

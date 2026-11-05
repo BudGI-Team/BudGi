@@ -22,11 +22,15 @@ const storage = multer.diskStorage({
   },
 });
 
+const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
+const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
 const fileFilter = (req, file, cb) => {
-  if (file.mimetype.startsWith('image/')) {
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  if (ALLOWED_EXTENSIONS.has(ext) && ALLOWED_MIME_TYPES.has(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Not an image! Please upload an image.'), false);
+    cb(new Error('Invalid file type. Only JPG, PNG, and WebP raster images are allowed.'), false);
   }
 };
 

@@ -197,6 +197,31 @@ export default function Dashboard() {
     };
   }, [transactions, selectedDate]);
 
+  /* ── Mathematical Safe-to-Spend Daily Runway Calculation ── */
+  const daysRemaining = useMemo(() => {
+    const now = new Date();
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return Math.max(1, endOfMonth.getDate() - now.getDate() + 1);
+  }, []);
+
+  const safeToSpend = useMemo(() => {
+    const liquid = stats.balance > 0 ? stats.balance : Math.max(0, stats.income - stats.expenses);
+    const pendingRecurring = upcomingSubs.reduce((acc, sub) => acc + (sub.amount || 0), 0);
+    const safetyBuffer = 2000;
+    const spendable = Math.max(0, liquid - pendingRecurring - safetyBuffer);
+    const daily = Math.round(spendable / daysRemaining);
+    const isHealthy = daily >= 250;
+    return {
+      daily,
+      spendable,
+      liquid,
+      pendingRecurring,
+      safetyBuffer,
+      daysRemaining,
+      isHealthy,
+    };
+  }, [stats, upcomingSubs, daysRemaining]);
+
   /* ── 6-month trend chart (from backend + client for income) ── */
   const trendData = useMemo(() => {
     const backendTrends = analytics?.spendingByMonth ?? [];
@@ -384,6 +409,42 @@ export default function Dashboard() {
                 : ''
           }
         />
+      </div>
+
+      {/* ── Mathematical Safe-to-Spend Daily Runway ── */}
+      <div className="safe-spend-runway-card">
+        <div className="safe-spend-main">
+          <div className="safe-spend-meta">
+            <div className="safe-spend-header-row">
+              <span className={`safe-spend-status-pill ${safeToSpend.isHealthy ? 'healthy' : 'constrained'}`}>
+                <ShieldCheck size={12} />
+                <span>{safeToSpend.isHealthy ? 'PACE BALANCED' : 'PACE CONSTRAINED'}</span>
+              </span>
+              <span className="safe-spend-cycle-tag">{safeToSpend.daysRemaining} days left in cycle</span>
+            </div>
+            <div className="safe-spend-amount-row">
+              <span className="safe-spend-number">{fmt(safeToSpend.daily, currency)}</span>
+              <span className="safe-spend-unit">/ day safe burn</span>
+            </div>
+            <p className="safe-spend-desc">
+              Your maximum recommended daily spend after deducting committed subscriptions and emergency reserve.
+            </p>
+          </div>
+
+          <div className="safe-spend-formula-box">
+            <span className="formula-header">CALCULATION MODEL</span>
+            <div className="formula-equation">
+              <code>Safe Daily = (Liquid − Bills − Reserve) ÷ Days Left</code>
+            </div>
+            <div className="formula-values">
+              <span>Liquid: {fmt(safeToSpend.liquid, currency)}</span>
+              <span>•</span>
+              <span>Committed: {fmt(safeToSpend.pendingRecurring, currency)}</span>
+              <span>•</span>
+              <span>Reserve: {fmt(safeToSpend.safetyBuffer, currency)}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ── Health Score + Weekly Digest ── */}
@@ -941,7 +1002,7 @@ export default function Dashboard() {
                       >
                         <CategoryAvatar category={tx.category} size={36} />
                         <div className="txn-info">
-                          <span className="txn-name">{tx.merchant || tx.description || 'Transaction'}</span>
+                          <span className="txn-name">{tx.alias || tx.merchant || tx.description || 'Transaction'}</span>
                           <span className="txn-cat">
                             <span style={{ color: catMeta.color, fontWeight: 600 }}>{tx.category}</span> ·{' '}
                             {format(new Date(tx.date), 'dd MMM')}

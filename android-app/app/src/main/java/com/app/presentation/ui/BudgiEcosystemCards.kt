@@ -5,7 +5,6 @@ import android.net.Uri
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,9 +17,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.Devices
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.OpenInBrowser
+import androidx.compose.material.icons.outlined.Devices
+import androidx.compose.material.icons.outlined.Groups
+import androidx.compose.material.icons.outlined.OpenInBrowser
+import androidx.compose.material.icons.outlined.Security
+import androidx.compose.material.icons.outlined.Terminal
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,16 +34,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
-import com.app.R
 import kotlin.math.absoluteValue
 
 /**
@@ -55,7 +54,8 @@ data class EcosystemCardItem(
     val description: String,
     val ctaText: String,
     val accentColor: Color,
-    val drawableRes: Int,
+    val iconVector: ImageVector,
+    val technicalTag: String,
     val actionType: CardActionType
 )
 
@@ -68,8 +68,8 @@ enum class CardActionType {
 
 /**
  * High-quality swappable cards showcasing the BudGi ecosystem.
- * - Non-AI generated look: uses custom 2D vector editorial illustrations featuring the BudGi mascot
- * - Smooth swipe physics with scale/alpha interpolation and illustration parallax
+ * - Non-AI generated look: uses custom vector typography and developer-grade telemetry badges
+ * - Smooth swipe physics with scale/alpha interpolation and haptic feedback
  * - Adaptive light/dark palette with tactile feedback and deep-link actions
  */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -95,7 +95,8 @@ fun BudgiEcosystemCardsSection(
                 description = "Check daily safe limits, spot recurring charge spikes, and ask financial questions in plain text.",
                 ctaText = "Chat with Copilot",
                 accentColor = Color(0xFF38BDF8), // BudGi Signature Sky Cyan
-                drawableRes = R.drawable.budgi_card_copilot,
+                iconVector = Icons.Outlined.Terminal,
+                technicalTag = "AUTONOMOUS",
                 actionType = CardActionType.COPILOT
             ),
             EcosystemCardItem(
@@ -105,7 +106,8 @@ fun BudgiEcosystemCardsSection(
                 description = "Log transactions on mobile; analyze deep reports on desktop. Real-time updates over WebSocket.",
                 ctaText = "Web Dashboard",
                 accentColor = Color(0xFF60BCD4), // BudGi Steel Cyan
-                drawableRes = R.drawable.budgi_card_sync,
+                iconVector = Icons.Outlined.Devices,
+                technicalTag = "REALTIME",
                 actionType = CardActionType.WEB_PORTAL
             ),
             EcosystemCardItem(
@@ -115,7 +117,8 @@ fun BudgiEcosystemCardsSection(
                 description = "Manage shared household bills, trip funds, and settle group balances without manual spreadsheets.",
                 ctaText = "Explore Spaces",
                 accentColor = Color(0xFF1DBF81), // BudGi Muted Green
-                drawableRes = R.drawable.budgi_card_spaces,
+                iconVector = Icons.Outlined.Groups,
+                technicalTag = "COLLABORATIVE",
                 actionType = CardActionType.SHARED_SPACES
             ),
             EcosystemCardItem(
@@ -125,7 +128,8 @@ fun BudgiEcosystemCardsSection(
                 description = "Bank SMS alerts are parsed locally on your device. Your financial logs never leave your phone.",
                 ctaText = "Manage Sync",
                 accentColor = Color(0xFFE2B774), // Warm Muted Gold
-                drawableRes = R.drawable.budgi_card_privacy,
+                iconVector = Icons.Outlined.Security,
+                technicalTag = "LOCAL_AES",
                 actionType = CardActionType.SMS_SYNC
             )
         )
@@ -210,11 +214,10 @@ fun BudgiEcosystemCardsSection(
         ) { page ->
             val card = cards[page]
 
-            // Calculate swipe offset for smooth scaling, opacity, and illustration parallax
+            // Calculate swipe offset for smooth scaling and opacity
             val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
             val scale = lerp(0.94f, 1f, 1f - pageOffset.coerceIn(0f, 1f))
             val alpha = lerp(0.75f, 1f, 1f - pageOffset.coerceIn(0f, 1f))
-            val parallaxPx = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction) * 18f
 
             val cardBg = if (isDark) Color(0xFF13161C) else Color(0xFFFFFFFF)
             val borderStroke = if (isDark) {
@@ -341,34 +344,69 @@ fun BudgiEcosystemCardsSection(
                         }
                     }
 
-                    // Right Column: Authentic 2D Editorial Illustration Frame
+                    // Right Column: Authentic Obsidian Vector Badge (Anti-AI developer aesthetic)
                     Box(
                         modifier = Modifier
-                            .size(width = 104.dp, height = 112.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (isDark) Color(0xFF0F1117) else Color(0xFFEDF2F7))
+                            .size(width = 100.dp, height = 110.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(
+                                if (isDark) {
+                                    Brush.radialGradient(
+                                        colors = listOf(
+                                            card.accentColor.copy(alpha = 0.18f),
+                                            Color(0xFF0F1117)
+                                        )
+                                    )
+                                } else {
+                                    Brush.radialGradient(
+                                        colors = listOf(
+                                            card.accentColor.copy(alpha = 0.12f),
+                                            Color(0xFFF1F5F9)
+                                        )
+                                    )
+                                }
+                            )
                             .border(
                                 1.dp,
                                 Brush.verticalGradient(
                                     listOf(
-                                        Color.White.copy(alpha = 0.12f),
-                                        card.accentColor.copy(alpha = 0.25f)
+                                        card.accentColor.copy(alpha = 0.40f),
+                                        Color.Transparent
                                     )
                                 ),
-                                RoundedCornerShape(14.dp)
+                                RoundedCornerShape(16.dp)
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Image(
-                            painter = painterResource(id = card.drawableRes),
-                            contentDescription = card.title,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .graphicsLayer {
-                                    translationX = parallaxPx
-                                }
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .clip(CircleShape)
+                                    .background(card.accentColor.copy(alpha = 0.15f))
+                                    .border(1.dp, card.accentColor.copy(alpha = 0.35f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = card.iconVector,
+                                    contentDescription = null,
+                                    tint = card.accentColor,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = card.technicalTag,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp,
+                                color = card.accentColor.copy(alpha = 0.9f)
+                            )
+                        }
                     }
                 }
             }
@@ -381,7 +419,7 @@ fun BudgiEcosystemCardsSection(
             onDismissRequest = { showWebPortalDialog = false },
             icon = {
                 Icon(
-                    imageVector = Icons.Filled.Devices,
+                    imageVector = Icons.Outlined.Devices,
                     contentDescription = null,
                     tint = Color(0xFF06B6D4),
                     modifier = Modifier.size(28.dp)
@@ -430,7 +468,7 @@ fun BudgiEcosystemCardsSection(
                     }
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.OpenInBrowser,
+                        imageVector = Icons.Outlined.OpenInBrowser,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp)
                     )

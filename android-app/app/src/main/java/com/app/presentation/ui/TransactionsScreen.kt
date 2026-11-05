@@ -1206,7 +1206,7 @@ fun TransactionsScreen(
 
                             items(items, key = { it.id }) { transaction ->
                                 TransactionItem(
-                                    merchant = transaction.merchant ?: transaction.sender,
+                                    merchant = transaction.alias?.takeIf { it.isNotBlank() } ?: transaction.merchant ?: transaction.sender,
                                     category = transaction.category,
                                     amount = "%,.0f".format(transaction.amount),
                                     date = DateUtils.formatDisplayTime(transaction.date, transaction.timestamp),

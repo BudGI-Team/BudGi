@@ -95,6 +95,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import kotlin.math.*
 import androidx.compose.runtime.rememberCoroutineScope
 import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import androidx.compose.ui.layout.ContentScale
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -115,6 +116,7 @@ fun DashboardScreen(
     onNavigateToSpaces: () -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
     onReviewTransaction: (transactionId: String, newCategory: String, alias: String?) -> Unit = { _, _, _ -> },
+    onApplyCategoryRule: (transactionId: String, newCategory: String, applyToPast: Boolean, applyToFuture: Boolean, alias: String?) -> Unit = { id, cat, _, _, al -> onReviewTransaction(id, cat, al) },
     onDismissReview: (transactionId: String) -> Unit = {},
     onApplyProposal: (com.app.domain.model.AutonomousActionProposal) -> Unit = {},
     onDismissProposal: (com.app.domain.model.AutonomousActionProposal) -> Unit = {},
@@ -314,6 +316,7 @@ fun DashboardScreen(
                                 MicroSpendCatchUpCard(
                                     unreviewedTransactions = unreviewedTransactions,
                                     onReviewTransaction = onReviewTransaction,
+                                    onApplyCategoryRule = onApplyCategoryRule,
                                     onDismissReview = onDismissReview,
                                     currencySymbol = currencySymbol
                                 )
@@ -381,6 +384,7 @@ fun DashboardScreen(
                         MicroSpendCatchUpCard(
                             unreviewedTransactions = unreviewedTransactions,
                             onReviewTransaction = onReviewTransaction,
+                            onApplyCategoryRule = onApplyCategoryRule,
                             onDismissReview = onDismissReview,
                             currencySymbol = currencySymbol
                         )
@@ -668,7 +672,7 @@ private fun RecentActivitySection(state: DashboardUiState, onSeeAllTransactions:
             ) {
                 displayList.forEach { transaction ->
                     TransactionItem(
-                        merchant = transaction.merchant ?: transaction.sender,
+                        merchant = transaction.alias?.takeIf { it.isNotBlank() } ?: transaction.merchant ?: transaction.sender,
                         category = transaction.category,
                         amount = "%,.0f".format(transaction.amount),
                         date = DateUtils.formatDisplayTime(transaction.date, transaction.timestamp),
@@ -1332,13 +1336,14 @@ fun HomeScreenTotalBalanceCard(
     val haptic = LocalHapticFeedback.current
 
     val balanceAmount = remember(state.transactions, state.analyticsSummary) {
-        val latestAvailableBalance = state.transactions
-            .filter { it.availableBalance != null && it.availableBalance > 0.0 }
-            .maxByOrNull { it.timestamp }
-            ?.availableBalance
+        // True multi-account aggregation: sum latest available balance across each distinct bank account
+        val latestPerAccount = state.transactions
+            .filter { it.availableBalance != null && it.availableBalance >= 0.0 }
+            .groupBy { it.accountLast4?.ifBlank { null } ?: it.sender.ifBlank { "default" } }
+            .mapValues { entry -> entry.value.maxByOrNull { it.timestamp }?.availableBalance ?: 0.0 }
 
-        if (latestAvailableBalance != null) {
-            latestAvailableBalance
+        if (latestPerAccount.isNotEmpty()) {
+            latestPerAccount.values.sum()
         } else if (state.transactions.isNotEmpty()) {
             val income = state.transactions.filter { it.type.equals("income", ignoreCase = true) || it.type.equals("credit", ignoreCase = true) }.sumOf { it.amount }
             val expense = state.transactions.filter { it.type.equals("expense", ignoreCase = true) || it.type.equals("debit", ignoreCase = true) }.sumOf { it.amount }
@@ -1461,14 +1466,26 @@ fun HomeScreenTotalBalanceCard(
                     ) {
                         val profileImage = state.user?.profileImage
                         if (!profileImage.isNullOrBlank()) {
-                            AsyncImage(
+                            SubcomposeAsyncImage(
                                 model = profileImage,
                                 contentDescription = "Profile",
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .clip(CircleShape)
                                     .border(1.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), CircleShape),
-                                contentScale = ContentScale.Crop
+                                contentScale = ContentScale.Crop,
+                                loading = {
+                                    MoodAvatar(
+                                        mood = state.user.avatar.ifBlank { "zen_saver" },
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                },
+                                error = {
+                                    MoodAvatar(
+                                        mood = state.user.avatar.ifBlank { "zen_saver" },
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
                             )
                         } else {
                             MoodAvatar(
@@ -2133,6 +2150,7 @@ fun MicroSpendCatchUpCard(
     unreviewedTransactions: List<com.app.domain.model.Transaction>,
     onReviewTransaction: (transactionId: String, newCategory: String, alias: String?) -> Unit,
     onDismissReview: (transactionId: String) -> Unit,
+    onApplyCategoryRule: (transactionId: String, newCategory: String, applyToPast: Boolean, applyToFuture: Boolean, alias: String?) -> Unit = { id, cat, _, _, al -> onReviewTransaction(id, cat, al) },
     modifier: Modifier = Modifier,
     currencySymbol: String = "₹"
 ) {
@@ -2176,9 +2194,9 @@ fun MicroSpendCatchUpCard(
         CategoryEditDialog(
             transaction = currentTx,
             onDismiss = { showCategoryPicker = false },
-            onConfirm = { newCat, newAlias, _, _ ->
+            onConfirm = { newCat, newAlias, applyPast, applyFuture ->
                 val txId = currentTx.clientId?.ifEmpty { currentTx.id } ?: currentTx.id
-                onReviewTransaction(txId, newCat, newAlias)
+                onApplyCategoryRule(txId, newCat, applyPast, applyFuture, newAlias)
                 confirmedMessage = "✓ Tagged as $newCat & learned for future visits"
                 showCategoryPicker = false
                 if (currentIndex >= unreviewedTransactions.size - 1) {
@@ -2881,14 +2899,26 @@ fun ProfileSidebarDrawer(
                 ) {
                     val profileImage = state.user?.profileImage
                     if (!profileImage.isNullOrBlank()) {
-                        AsyncImage(
+                        SubcomposeAsyncImage(
                             model = profileImage,
                             contentDescription = "Profile Picture",
                             modifier = Modifier
                                 .size(48.dp)
                                 .clip(CircleShape)
                                 .border(1.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), CircleShape),
-                            contentScale = ContentScale.Crop
+                            contentScale = ContentScale.Crop,
+                            loading = {
+                                MoodAvatar(
+                                    mood = state.user.avatar.ifBlank { "zen_saver" },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            },
+                            error = {
+                                MoodAvatar(
+                                    mood = state.user.avatar.ifBlank { "zen_saver" },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
                         )
                     } else {
                         MoodAvatar(

@@ -218,7 +218,7 @@ class TransactionRepositoryImpl @Inject constructor(
                 )
             )
             // Also mark the local entity as pending_update if it has a serverId
-            val entity = transactionDao.getByServerId(id)
+            val entity = findTransactionEntity(id)
             if (entity != null) {
                 transactionDao.updateSyncStatus(entity.id, "pending_update")
             }
@@ -227,29 +227,38 @@ class TransactionRepositoryImpl @Inject constructor(
     }
 
     override suspend fun deleteTransaction(id: String): Result<Unit> = runCatching {
-        try {
-            val response = transactionApi.delete(id)
-            if (response.isSuccessful) {
-                transactionDao.deleteByServerIds(listOf(id))
-            } else {
-                throw Exception("Delete failed: HTTP ${response.code()}")
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "deleteTransaction: offline, marking as pending_delete", e)
-            // Mark as pending_delete locally so it's excluded from UI and synced on next sync
-            val entity = transactionDao.getByServerId(id)
-            if (entity != null) {
+        val entity = findTransactionEntity(id)
+        if (entity != null && !entity.serverId.isNullOrBlank()) {
+            val serverId = entity.serverId
+            try {
+                val response = transactionApi.delete(serverId)
+                if (response.isSuccessful) {
+                    transactionDao.deleteById(entity.id)
+                } else {
+                    throw Exception("Delete failed: HTTP ${response.code()}")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "deleteTransaction: offline, marking as pending_delete", e)
                 transactionDao.updateSyncStatus(entity.id, "pending_delete")
                 pendingOperationDao.insert(
                     PendingOperationEntity(
                         entityType = "transaction",
                         operationType = "delete",
-                        entityId = id,
+                        entityId = serverId,
                         payload = ""
                     )
                 )
                 SyncWorkScheduler.scheduleImmediateSync(context)
             }
+        } else if (entity != null) {
+            // Purely local unsynced transaction, delete immediately
+            transactionDao.deleteById(entity.id)
+        } else if (isServerObjectId(id)) {
+            // In case entity was not found in Room but has serverId
+            try {
+                transactionApi.delete(id)
+                transactionDao.deleteByServerIds(listOf(id))
+            } catch (_: Exception) {}
         }
     }
 
@@ -485,14 +494,19 @@ class TransactionRepositoryImpl @Inject constructor(
                     break
                 }
 
-                // Check 2: Same sender or matching merchant within same day
-                val sameSender = existingTx.sender.equals(tx.sender, ignoreCase = true)
+                // Check 2: Logical deduplication for unreferenced SMS within narrow burst window
+                // Crucial fix: never treat identical bank sender (e.g. VM-BOBTXN) alone as duplicate!
                 val existingMerchantNormal = existingTx.normalizedMerchant ?: MerchantNormalizer.normalize(existingTx.merchant)
                 val newMerchantNormal = MerchantNormalizer.normalize(tx.merchant)
                 val sameMerchant = existingMerchantNormal.isNotBlank() && existingMerchantNormal == newMerchantNormal
+                val sameVpa = !tx.upiId.isNullOrBlank() && tx.upiId.equals(existingTx.upiId, ignoreCase = true)
                 val typeMatch = existingTx.type.equals(if (tx.type == "debit") "expense" else "income", ignoreCase = true)
 
-                if ((sameSender || sameMerchant) && typeMatch) {
+                // If identical merchant or VPA, only consider duplicate if received within 60s gateway retry burst
+                val timeDeltaMs = kotlin.math.abs(existingTx.timestamp - tx.transactionDate)
+                val isBurstRetry = timeDeltaMs < 60_000L
+
+                if ((sameMerchant || sameVpa) && typeMatch && isBurstRetry) {
                     isDuplicate = true
                     break
                 }
@@ -956,6 +970,17 @@ class TransactionRepositoryImpl @Inject constructor(
 
     // ── Merchant Learning ────────────────────────────────────────────────
 
+    private suspend fun findTransactionEntity(identifier: String): TransactionEntity? {
+        val localId = identifier.toLongOrNull()
+        if (localId != null) {
+            val byId = transactionDao.getById(localId)
+            if (byId != null) return byId
+        }
+        val byClient = transactionDao.getByClientId(identifier)
+        if (byClient != null) return byClient
+        return transactionDao.getByServerId(identifier)
+    }
+
     override suspend fun applyCategoryToMerchant(
         transactionId: String,
         newCategory: String,
@@ -963,13 +988,8 @@ class TransactionRepositoryImpl @Inject constructor(
         applyToFuture: Boolean,
         alias: String?
     ): Result<Unit> = runCatching {
-        // Find the transaction locally
-        val localId = transactionId.toLongOrNull()
-        val entity = if (localId != null) {
-            transactionDao.getById(localId)
-        } else {
-            transactionDao.getByServerId(transactionId)
-        } ?: throw Exception("Transaction not found")
+        // Robust lookup: supports local numeric ID, UUID clientId, or MongoDB serverId
+        val entity = findTransactionEntity(transactionId) ?: throw Exception("Transaction not found: $transactionId")
 
         val merchantKey = MerchantNormalizer.getBestKey(entity.merchant, entity.upiId)
         val normalized = MerchantNormalizer.normalize(merchantKey)
@@ -1049,12 +1069,9 @@ class TransactionRepositoryImpl @Inject constructor(
         }
 
     override suspend fun dismissReview(transactionId: String): Result<Unit> = runCatching {
-        val localId = transactionId.toLongOrNull()
-        if (localId != null) {
-            transactionDao.markReviewed(localId)
-        } else {
-            val entity = transactionDao.getByServerId(transactionId)
-            if (entity != null) transactionDao.markReviewed(entity.id)
+        val entity = findTransactionEntity(transactionId)
+        if (entity != null) {
+            transactionDao.markReviewed(entity.id)
         }
     }
 

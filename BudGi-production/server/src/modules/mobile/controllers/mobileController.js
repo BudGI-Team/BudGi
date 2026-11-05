@@ -114,15 +114,15 @@ const LATEST_APK_URL = `https://github.com/${GITHUB_REPO}/releases/latest/downlo
 const RELEASES_PAGE_URL = `https://github.com/${GITHUB_REPO}/releases`;
 
 const APP_UPDATE_INFO = {
-  latestVersionCode: 7,
-  latestVersionName: '1.2.1',
+  latestVersionCode: 8,
+  latestVersionName: '1.2.2',
   minSupportedVersionCode: 1,
   forceUpdate: false,
   maintenance: false,
   apkUrl: LATEST_APK_URL,
   apkChecksumSha256: null,
   releasesUrl: RELEASES_PAGE_URL,
-  releaseNotes: '• Sleek Compact Cards: Clean 62dp cards with zero vertical stretching or text wrapping\n• Redesigned Micro-Spend Catch-Up: Obsidian-themed 1-click expense triage deck\n• Custom Categories & Merchants: Manual recipient renaming and instant category creator\n• Persistent Profile Avatar: Offline-first profile picture preserved across app restarts\n• Precision SMS Engine: 15+ Indian bank parsers & 1-tap lockscreen notifications',
+  releaseNotes: '• Sleek Compact Cards: Clean 62dp cards with zero vertical stretching or text wrapping\n• Redesigned Micro-Spend Catch-Up: Obsidian-themed 1-click expense triage deck\n• Precision Merchant Parsing: Fixes Paytm & Google Pay facilitator naming\n• Custom Categories & Nicknames: Editable recipient name and instant category rule creator\n• Persistent Profile Avatar: Reliable offline-first profile avatar caching immune to server sleep\n• Multi-Account Net Balance: Aggregated liquid balance calculated across all linked bank accounts\n• Collaborative Spaces: Real-time collaborative budgeting hub with WebSocket sync',
   publishedAt: new Date().toISOString(),
 };
 

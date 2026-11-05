@@ -4,7 +4,28 @@
 'use strict';
 
 const authService = require('../services/authService');
+const env = require('../../../config/env');
 const { ok, created, asyncHandler } = require('../../../utils/response');
+
+const setRefreshTokenCookie = (res, refreshToken) => {
+  if (!refreshToken) return;
+  res.cookie('budgi_refresh_token', refreshToken, {
+    httpOnly: true,
+    secure: env.isProd,
+    sameSite: env.isProd ? 'strict' : 'lax',
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    path: '/',
+  });
+};
+
+const clearRefreshTokenCookie = (res) => {
+  res.clearCookie('budgi_refresh_token', {
+    httpOnly: true,
+    secure: env.isProd,
+    sameSite: env.isProd ? 'strict' : 'lax',
+    path: '/',
+  });
+};
 
 const getClientMeta = (req) => {
   const platform = req.body?.platform || (req.headers['user-agent']?.toLowerCase().includes('okhttp') ? 'android' : 'web');
@@ -14,16 +35,19 @@ const getClientMeta = (req) => {
 
 const register = asyncHandler(async (req, res) => {
   const result = await authService.register(req.body);
+  if (result?.refreshToken) setRefreshTokenCookie(res, result.refreshToken);
   return created(res, result, 'Account created');
 });
 
 const login = asyncHandler(async (req, res) => {
   const result = await authService.login({ ...req.body, ...getClientMeta(req) });
+  if (result?.refreshToken) setRefreshTokenCookie(res, result.refreshToken);
   return ok(res, result, 'Login successful');
 });
 
 const googleLogin = asyncHandler(async (req, res) => {
   const result = await authService.googleLogin(req.body.idToken || req.body.token, getClientMeta(req));
+  if (result?.refreshToken) setRefreshTokenCookie(res, result.refreshToken);
   return ok(res, result, 'Google login successful');
 });
 
@@ -58,6 +82,7 @@ const phoneLoginVerify = asyncHandler(async (req, res) => {
     otp: req.body.otp,
     ...getClientMeta(req),
   });
+  if (result?.refreshToken) setRefreshTokenCookie(res, result.refreshToken);
   return ok(res, result, 'Phone verified and authenticated successfully');
 });
 
@@ -78,6 +103,7 @@ const phoneRegisterVerify = asyncHandler(async (req, res) => {
     username: req.body.username,
     ...getClientMeta(req),
   });
+  if (result?.refreshToken) setRefreshTokenCookie(res, result.refreshToken);
   return ok(res, result, 'Phone registered and account created successfully');
 });
 
@@ -86,6 +112,7 @@ const firebasePhoneLogin = asyncHandler(async (req, res) => {
     idToken: req.body.idToken,
     ...getClientMeta(req),
   });
+  if (result?.refreshToken) setRefreshTokenCookie(res, result.refreshToken);
   return ok(res, result, 'Firebase phone login successful');
 });
 
@@ -96,18 +123,23 @@ const firebasePhoneRegister = asyncHandler(async (req, res) => {
     username: req.body.username,
     ...getClientMeta(req),
   });
+  if (result?.refreshToken) setRefreshTokenCookie(res, result.refreshToken);
   return ok(res, result, 'Firebase phone registration successful');
 });
 
 // POST /api/auth/refresh — exchange refresh token for new token pair
 const refresh = asyncHandler(async (req, res) => {
-  const result = await authService.refreshAccessToken(req.body.refreshToken, getClientMeta(req));
+  const token = req.body?.refreshToken || req.cookies?.budgi_refresh_token;
+  const result = await authService.refreshAccessToken(token, getClientMeta(req));
+  if (result?.refreshToken) setRefreshTokenCookie(res, result.refreshToken);
   return ok(res, result, 'Token refreshed');
 });
 
 // POST /api/auth/logout — invalidate refresh token
 const logout = asyncHandler(async (req, res) => {
-  await authService.logout(req.user.id, req.body?.refreshToken);
+  const token = req.body?.refreshToken || req.cookies?.budgi_refresh_token;
+  await authService.logout(req.user.id, token);
+  clearRefreshTokenCookie(res);
   return ok(res, {}, 'Logged out');
 });
 

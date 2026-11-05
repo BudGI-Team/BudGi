@@ -261,40 +261,59 @@ fun CategoryEditDialog(
                                 }
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Surface(
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
                                     border = androidx.compose.foundation.BorderStroke(
-                                        0.8.dp,
-                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                                        1.dp,
+                                        if (merchantAliasInput.isNotBlank()) MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+                                        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
                                     ),
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(end = 12.dp)
                                 ) {
-                                    androidx.compose.foundation.text.BasicTextField(
-                                        value = merchantAliasInput,
-                                        onValueChange = { merchantAliasInput = it },
-                                        textStyle = MaterialTheme.typography.titleMedium.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            fontSize = 15.sp
-                                        ),
-                                        singleLine = true,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        decorationBox = { innerTextField ->
-                                            if (merchantAliasInput.isBlank()) {
-                                                Text(
-                                                    text = merchantDisplay,
-                                                    style = MaterialTheme.typography.titleMedium.copy(
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                                        fontSize = 15.sp
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                    ) {
+                                        androidx.compose.foundation.text.BasicTextField(
+                                            value = merchantAliasInput,
+                                            onValueChange = { merchantAliasInput = it },
+                                            textStyle = MaterialTheme.typography.titleMedium.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                fontSize = 15.sp
+                                            ),
+                                            singleLine = true,
+                                            modifier = Modifier.weight(1f),
+                                            decorationBox = { innerTextField ->
+                                                if (merchantAliasInput.isBlank()) {
+                                                    Text(
+                                                        text = "e.g. Ramesh Chai, Local Kirana...",
+                                                        style = MaterialTheme.typography.titleMedium.copy(
+                                                            fontWeight = FontWeight.Normal,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                                            fontSize = 14.sp
+                                                        )
                                                     )
+                                                }
+                                                innerTextField()
+                                            }
+                                        )
+                                        if (merchantAliasInput.isNotBlank()) {
+                                            IconButton(
+                                                onClick = { merchantAliasInput = "" },
+                                                modifier = Modifier.size(20.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Close,
+                                                    contentDescription = "Clear",
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                    modifier = Modifier.size(14.dp)
                                                 )
                                             }
-                                            innerTextField()
                                         }
-                                    )
+                                    }
                                 }
                             }
 

@@ -1,20 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- Allow cleartext ONLY for local development IPs (debug builds) -->
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">10.0.2.2</domain>
-        <domain includeSubdomains="true">10.30.189.75</domain>
-        <domain includeSubdomains="true">10.106.76.75</domain>
-        <domain includeSubdomains="true">10.106.76.227</domain>
-        <domain includeSubdomains="true">10.63.211.227</domain>
-        <domain includeSubdomains="true">192.168.1.7</domain>
-        <domain includeSubdomains="true">localhost</domain>
-    </domain-config>
-
-    <!-- Production: HTTPS only. No cleartext traffic allowed globally. -->
-    <base-config cleartextTrafficPermitted="true">
+    <!-- Production: Strict HTTPS only. No cleartext traffic allowed globally. -->
+    <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
     </base-config>
+
+    <!-- Allow cleartext ONLY for local development emulator loopback -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+    </domain-config>
 </network-security-config>

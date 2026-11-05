@@ -479,11 +479,15 @@ class AuthRepositoryImpl @Inject constructor(
 
     private suspend fun saveUserLocally(dto: UserDto) {
         val existingLocal = userDao.getLoggedInUserSync()
+        val localAvatarFile = java.io.File(context.filesDir, "budgi_profile_avatar.jpg")
+        val hasLocalAvatar = localAvatarFile.exists() && localAvatarFile.length() > 0
+
         val persistentProfileImage = when {
-            !dto.profileImage.isNullOrBlank() && !dto.profileImage.startsWith("/data") -> dto.profileImage
-            existingLocal?.profileImage != null && !existingLocal.profileImage.isNullOrBlank() -> existingLocal.profileImage
-            !tokenManager.profilePictureUri.isNullOrBlank() -> tokenManager.profilePictureUri
-            else -> dto.profileImage
+            hasLocalAvatar -> localAvatarFile.absolutePath
+            !tokenManager.profilePictureUri.isNullOrBlank() && java.io.File(tokenManager.profilePictureUri!!).exists() -> tokenManager.profilePictureUri
+            existingLocal?.profileImage != null && (java.io.File(existingLocal.profileImage).exists() || existingLocal.profileImage.startsWith("file://") || existingLocal.profileImage.startsWith("content://")) -> existingLocal.profileImage
+            !dto.profileImage.isNullOrBlank() -> dto.profileImage
+            else -> existingLocal?.profileImage ?: tokenManager.profilePictureUri
         }
 
         userDao.logoutAll()
@@ -540,6 +544,11 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     private fun getAbsoluteProfileImageUrl(url: String?): String? {
+        val localAvatarFile = java.io.File(context.filesDir, "budgi_profile_avatar.jpg")
+        if (localAvatarFile.exists() && localAvatarFile.length() > 0) {
+            return "file://${localAvatarFile.absolutePath}"
+        }
+
         val target = if (url.isNullOrBlank() || url.equals("null", ignoreCase = true) || url.equals("undefined", ignoreCase = true)) {
             tokenManager.profilePictureUri
         } else {

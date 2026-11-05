@@ -56,7 +56,7 @@ const config = {
 
   MONGO_URI: required('MONGO_URI', 'MongoDB connection string'),
   JWT_SECRET: required('JWT_SECRET', 'Secret key for signing JWT tokens (min 32 chars)'),
-  JWT_EXPIRES_IN: optional('JWT_EXPIRES_IN', '7d'),
+  JWT_EXPIRES_IN: optional('JWT_EXPIRES_IN', '15m'),
 
   CLIENT_ORIGIN: optional('CLIENT_ORIGIN', 'http://localhost:5173'),
 
@@ -96,8 +96,8 @@ if (config.JWT_SECRET && config.JWT_SECRET.length < 32) {
 if (missing.length > 0) {
   process.stderr.write(
     '\n✖  Server cannot start — required environment variables are missing:\n\n' +
-      missing.join('\n') +
-      '\n\nCopy .env.example to .env and fill in the values.\n\n',
+    missing.join('\n') +
+    '\n\nCopy .env.example to .env and fill in the values.\n\n',
   );
   process.exit(1);
 }

@@ -896,7 +896,7 @@ fun TransactionItem(
                     verticalAlignment = Alignment.CenterVertically, 
                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
-                    // Sleek minimal category micro-pill
+                    // Sleek minimal category micro-pill with integrated learned indicator
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(3.dp),
@@ -906,6 +906,14 @@ fun TransactionItem(
                             .border(0.6.dp, catColor.copy(alpha = 0.25f), CircleShape)
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
+                        if (categorySource.equals("UserLearned", ignoreCase = true)) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = "Learned Rule",
+                                tint = catColor,
+                                modifier = Modifier.size(9.dp)
+                            )
+                        }
                         Text(
                             text = category,
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.5.sp),
@@ -986,20 +994,6 @@ fun TransactionItem(
                                 modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
                                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.5.sp, fontWeight = FontWeight.SemiBold),
                                 color = if (allSettled) CategoryColors.Groceries else MaterialTheme.colorScheme.primary,
-                                maxLines = 1,
-                                softWrap = false
-                            )
-                        }
-                    } else if (categorySource == "UserLearned") {
-                        Surface(
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                            shape = CircleShape
-                        ) {
-                            Text(
-                                text = "LEARNED",
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.sp, fontWeight = FontWeight.Medium),
-                                color = MaterialTheme.colorScheme.primary,
                                 maxLines = 1,
                                 softWrap = false
                             )

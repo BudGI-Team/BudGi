@@ -465,6 +465,7 @@ fun FinanceAppRoot(
                                 onNavigateToSpaces = { navController.navigate("spaces_graph") },
                                 onNavigateToNotifications = { navController.navigate("profile_notifications") },
                                 onReviewTransaction = viewModel::quickReviewTransaction,
+                                onApplyCategoryRule = viewModel::applyCategoryToMerchant,
                                 onDismissReview = viewModel::dismissReview,
                                 onApplyProposal = viewModel::executeProposal,
                                 onDismissProposal = viewModel::dismissProposal,

@@ -888,3 +888,127 @@
     margin-top: 0;
   }
 }
+
+/* ── Mathematical Safe-to-Spend Daily Runway Card ── */
+.safe-spend-runway-card {
+  background: var(--bg-surface, #13161c);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  border-radius: var(--radius-lg, 1rem);
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  margin-top: 4px;
+}
+
+.safe-spend-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.safe-spend-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 1;
+  min-width: 280px;
+}
+
+.safe-spend-header-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.safe-spend-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+}
+
+.safe-spend-status-pill.healthy {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.safe-spend-status-pill.constrained {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.safe-spend-cycle-tag {
+  font-size: 0.75rem;
+  color: var(--text-muted, #64748b);
+  font-weight: 500;
+}
+
+.safe-spend-amount-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.safe-spend-number {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--text-primary, #f1f5f9);
+  letter-spacing: -0.02em;
+}
+
+.safe-spend-unit {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--accent, #06b6d4);
+}
+
+.safe-spend-desc {
+  font-size: 0.8125rem;
+  color: var(--text-secondary, #94a3b8);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.safe-spend-formula-box {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 0.75rem;
+  padding: 0.875rem 1.125rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 320px;
+}
+
+.formula-header {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-muted, #64748b);
+}
+
+.formula-equation code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.75rem;
+  color: var(--accent, #06b6d4);
+  background: transparent;
+  padding: 0;
+}
+
+.formula-values {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.6875rem;
+  color: var(--text-muted, #64748b);
+  flex-wrap: wrap;
+}
+

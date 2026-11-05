@@ -19,6 +19,7 @@ import {
   Mail,
   FileText,
   Flame,
+  Users,
 } from '../../lib/icons';
 import { useUnreadAlerts } from '../../hooks/useAlerts';
 import useStore from '../../store/useStore';
@@ -31,6 +32,7 @@ const NAV_MAIN = [
   { to: '/app/budgets', icon: Wallet, label: 'Budgets', shortcut: 'Alt+B' },
   { to: '/app/analytics', icon: BarChart3, label: 'Insights', shortcut: 'Alt+A' },
   { to: '/app/goals', icon: Target, label: 'Goals', shortcut: 'Alt+G' },
+  { to: '/app/spaces', icon: Users, label: 'Spaces', shortcut: 'Alt+S' },
 ];
 
 const NAV_TOOLS = [{ to: '/app/ai', icon: Bot, label: 'Copilot', shortcut: 'Alt+C' }];

@@ -99,9 +99,8 @@ class MainActivity : AppCompatActivity() {
         isAuthenticated.value = !tokenManager.isBiometricEnabled
         showPrompt.value = tokenManager.isBiometricEnabled
 
-        if (tokenManager.isBiometricEnabled) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        }
+        // Institutional FinTech Security: Enforce FLAG_SECURE to prevent task switcher snapshot leaks
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
 
         setContent {
             val windowSizeClass = calculateWindowSizeClass(this)
@@ -206,7 +205,6 @@ class MainActivity : AppCompatActivity() {
                 showPrompt.value = false
                 isPromptActive = false
                 currentBiometricPrompt = null
-                window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
             },
             onError = { _, _ ->
                 isPromptActive = false

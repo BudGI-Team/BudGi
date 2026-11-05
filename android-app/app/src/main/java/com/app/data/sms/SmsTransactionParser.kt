@@ -663,13 +663,17 @@ class SmsTransactionParser @Inject constructor(
 
     private fun detectPaymentMethod(normalized: String): String {
         return when {
+            normalized.contains("google pay") || normalized.contains("gpay") -> "Google Pay"
+            normalized.contains("phonepe") -> "PhonePe"
+            normalized.contains("paytm") -> "Paytm"
+            normalized.contains("cred") -> "CRED"
             normalized.contains("upi") || normalized.contains("@") -> "UPI"
             normalized.contains("neft") -> "NEFT"
             normalized.contains("rtgs") -> "RTGS"
             normalized.contains("imps") -> "IMPS"
             normalized.contains("atm") -> "ATM"
             normalized.contains("card") || normalized.contains("pos") -> "Card"
-            normalized.contains("wallet") || normalized.contains("paytm") || normalized.contains("phonepe") -> "Wallet"
+            normalized.contains("wallet") -> "Wallet"
             else -> "Bank Transfer"
         }
     }
@@ -680,7 +684,7 @@ class SmsTransactionParser @Inject constructor(
     private fun extractMerchant(body: String, upiId: String?): String? {
         val lowerBody = body.lowercase(Locale.US)
 
-        // 1. Direct match for known popular Indian merchants
+        // 1. Direct match for known popular Indian merchants (Swiggy, Zomato, etc.)
         for ((key, displayName) in KNOWN_MERCHANT_MAP) {
             if (lowerBody.contains(key)) {
                 return displayName
@@ -690,7 +694,9 @@ class SmsTransactionParser @Inject constructor(
         // 2. Extract from UPI ID first
         if (!upiId.isNullOrBlank()) {
             val upiMerchant = extractMerchantFromUpiId(upiId)
-            if (upiMerchant != null) return upiMerchant
+            if (upiMerchant != null && !PAYMENT_APP_NAMES.contains(upiMerchant.lowercase(Locale.US))) {
+                return upiMerchant
+            }
         }
 
         // 3. Try structured text patterns
@@ -719,12 +725,15 @@ class SmsTransactionParser @Inject constructor(
                 ) {
                     if (merchant.contains("@")) {
                         val fromVpa = extractMerchantFromUpiId(merchant)
-                        if (fromVpa != null) return fromVpa
+                        if (fromVpa != null && !PAYMENT_APP_NAMES.contains(fromVpa.lowercase(Locale.US))) {
+                            return fromVpa
+                        }
                     }
                     // Clean up trailing noise words matched greedily
                     merchant = merchant.replace(Regex("""\s+(ref|on|via|txn|at|date|using|upi).*$""", RegexOption.IGNORE_CASE), "")
                     val cleaned = merchant.trim()
-                    if (cleaned.isNotBlank() && !NOISE_WORDS.contains(cleaned.lowercase(Locale.US))) {
+                    val lowerCleaned = cleaned.lowercase(Locale.US)
+                    if (cleaned.isNotBlank() && !NOISE_WORDS.contains(lowerCleaned) && !PAYMENT_APP_NAMES.contains(lowerCleaned)) {
                         return cleaned.replaceFirstChar { it.uppercase() }
                     }
                 }
@@ -740,6 +749,13 @@ class SmsTransactionParser @Inject constructor(
         val localPart = upiId.substringBefore("@")
         if (localPart.matches(Regex("""^\d+$"""))) return null
         if (localPart.length < 2) return null
+
+        // Opaque merchant QR codes like paytmqr6h0pjs or bharatpe0912
+        val lowerLocal = localPart.lowercase(Locale.US)
+        if (lowerLocal.startsWith("paytmqr") || lowerLocal.startsWith("phonepeqr") ||
+            lowerLocal.startsWith("bharatpe") || lowerLocal.matches(Regex("""^(qr|merchant|pay)\d+.*"""))) {
+            return null
+        }
 
         val cleaned = localPart
             .replace(Regex("""\.(payu|razorpay|payments?|pay|merchant|upi)$""", RegexOption.IGNORE_CASE), "")
@@ -789,6 +805,10 @@ class SmsTransactionParser @Inject constructor(
     }
 
     companion object {
+        private val PAYMENT_APP_NAMES = setOf(
+            "paytm", "phonepe", "google pay", "gpay", "cred", "amazon pay", "bhim", "mobikwik"
+        )
+
         private val KNOWN_MERCHANT_MAP = mapOf(
             "swiggy" to "Swiggy",
             "zomato" to "Zomato",
@@ -856,12 +876,7 @@ class SmsTransactionParser @Inject constructor(
             "cult.fit" to "Cult.fit",
             "decathlon" to "Decathlon",
             "lenskart" to "Lenskart",
-            "firstcry" to "FirstCry",
-            "cred" to "CRED",
-            "phonepe" to "PhonePe",
-            "paytm" to "Paytm",
-            "google pay" to "Google Pay",
-            "gpay" to "Google Pay"
+            "firstcry" to "FirstCry"
         )
 
         private val TRANSACTION_ACTION_KEYWORDS = listOf(

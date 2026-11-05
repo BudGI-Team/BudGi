@@ -20,6 +20,7 @@ const Budgets = lazy(() => import('./pages/Budgets'));
 const Analytics = lazy(() => import('./pages/Analytics'));
 const AIChat = lazy(() => import('./pages/AIChat'));
 const Goals = lazy(() => import('./pages/Goals'));
+const Spaces = lazy(() => import('./pages/Spaces'));
 const Onboarding = lazy(() => import('./pages/Onboarding'));
 const Transactions = lazy(() => import('./pages/Transactions'));
 const Settings = lazy(() => import('./pages/Settings'));
@@ -112,6 +113,7 @@ export default function App() {
             <Route path="budgets" element={<Budgets />} />
             <Route path="analytics" element={<Analytics />} />
             <Route path="goals" element={<Goals />} />
+            <Route path="spaces" element={<Spaces />} />
             <Route path="ai" element={<AIChat />} />
             <Route path="settings" element={<Settings />} />
           </Route>
