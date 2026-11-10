@@ -31,7 +31,12 @@ object MerchantNormalizer {
     )
 
     private val GATEWAY_PREFIXES = Regex(
-        """^(bil|billdesk|rzp|razorpay|payu|ccavenue|cashfree|pinelabs|airpay|paytm|phonepe|gpay|upi|amazonpay|simpl|cred)[*_\-/:\s]+""",
+        """^(bil|billdesk|rzp|razorpay|payu|ccavenue|cashfree|pinelabs|airpay|paytm|phonepe|gpay|upi|amazonpay|simpl|cred|pos|tid|info|vpa|to\s+vpa|towards)[*_\-/:\s]+""",
+        RegexOption.IGNORE_CASE
+    )
+
+    private val TRAILING_NOISE = Regex(
+        """\s+(?:ref|ref\s*no|txn|txn\s*id|id|rrn|on|at|via|using|by|date|avlbal|avl|bal|cr|dr|dated)\b.*$""",
         RegexOption.IGNORE_CASE
     )
 
@@ -105,7 +110,10 @@ object MerchantNormalizer {
     fun extractFriendlyName(merchant: String?, upiId: String?): String {
         if (!merchant.isNullOrBlank() && !merchant.equals("merchant", ignoreCase = true) && !merchant.matches(Regex("""^\d+$"""))) {
             val deMasked = stripGatewayPrefix(merchant)
-            val cleaned = deMasked.replace(Regex("""\s+(ref|on|via|txn|at|date|using|upi).*$""", RegexOption.IGNORE_CASE), "").trim()
+            val cleaned = TRAILING_NOISE.replace(deMasked, "").trim()
+            val lower = cleaned.lowercase(Locale.US)
+            val known = SmsTransactionParser.KNOWN_MERCHANT_MAP[lower]
+            if (known != null) return known
             if (cleaned.isNotBlank() && !cleaned.contains("@")) {
                 return cleaned.split(" ").filter { it.isNotBlank() }.joinToString(" ") { word ->
                     word.lowercase(Locale.US).replaceFirstChar { it.uppercase() }
@@ -121,6 +129,8 @@ object MerchantNormalizer {
                     .replace(Regex("""\d+$"""), "") // Remove trailing numbers (e.g. ramesh98 → ramesh)
                     .replace(Regex("""[._\-]"""), " ")
                     .trim()
+                val known = SmsTransactionParser.KNOWN_MERCHANT_MAP[words.lowercase(Locale.US)]
+                if (known != null) return known
                 if (words.isNotBlank() && words.length >= 2) {
                     return words.split(" ").filter { it.isNotBlank() }.joinToString(" ") { word ->
                         word.lowercase(Locale.US).replaceFirstChar { it.uppercase() }
@@ -130,6 +140,84 @@ object MerchantNormalizer {
         }
 
         return merchant?.ifBlank { null } ?: upiId ?: "Local Vendor"
+    }
+
+    /**
+     * Resolves an industry-grade, human-readable display merchant name for any transaction.
+     * Guarantees telecommunication short-codes (e.g. "VM-HDFCBK", "AD-SBIINB") are NEVER shown
+     * to the user as transaction titles.
+     */
+    fun getDisplayMerchant(
+        alias: String? = null,
+        merchant: String? = null,
+        upiId: String? = null,
+        sender: String = "",
+        method: String = "",
+        category: String = "",
+        type: String = "",
+        rawSms: String? = null,
+        description: String = ""
+    ): String {
+        if (!alias.isNullOrBlank()) return alias.trim()
+
+        val candidate = merchant?.takeIf { it.isNotBlank() && !isTelecomSender(it) }
+        if (candidate != null) {
+            val clean = extractFriendlyName(candidate, upiId)
+            if (clean.isNotBlank() && !isTelecomSender(clean)) return clean
+        }
+
+        if (!upiId.isNullOrBlank()) {
+            val fromVpa = extractFriendlyName(null, upiId)
+            if (fromVpa.isNotBlank() && !fromVpa.equals("Local Vendor", ignoreCase = true) && !isTelecomSender(fromVpa)) {
+                return fromVpa
+            }
+        }
+
+        val rawLower = (rawSms ?: description).lowercase(Locale.US)
+        val bankName = extractBankName(sender)
+
+        return when {
+            method.equals("ATM", ignoreCase = true) || rawLower.contains("atm") -> "Cash Withdrawal (ATM)"
+            category.equals("Income", ignoreCase = true) || rawLower.contains("salary") -> "Salary Credit"
+            rawLower.contains("interest credited") || rawLower.contains("bank interest") -> "Bank Interest"
+            rawLower.contains("refund") || rawLower.contains("reversed") -> "Refund / Reversal"
+            rawLower.contains("fastag") || rawLower.contains("toll") -> "FASTag Toll"
+            rawLower.contains("recharge") -> "Mobile / DTH Recharge"
+            method.equals("UPI", ignoreCase = true) || rawLower.contains("upi") -> "UPI Transfer"
+            method.equals("Card", ignoreCase = true) || rawLower.contains("card") || rawLower.contains("pos") -> "Card Payment"
+            type.equals("income", ignoreCase = true) || type.equals("credit", ignoreCase = true) -> if (bankName.isNotBlank()) "$bankName Credit" else "Bank Credit"
+            else -> if (bankName.isNotBlank()) "$bankName Payment" else "Bank Transfer"
+        }
+    }
+
+    private fun isTelecomSender(text: String): Boolean {
+        val trimmed = text.trim().uppercase(Locale.US)
+        return trimmed.matches(Regex("""^[A-Z]{2}-[A-Z0-9]{3,}$""")) ||
+               trimmed.matches(Regex("""^[A-Z]{2}[A-Z0-9]{4,}$""")) ||
+               trimmed.contains("HDFCBK") || trimmed.contains("SBIINB") ||
+               trimmed.contains("ICICIB") || trimmed.contains("AXISBK") ||
+               trimmed.contains("BOBTXN") || trimmed.contains("KOTAKB")
+    }
+
+    private fun extractBankName(sender: String): String {
+        val upper = sender.uppercase(Locale.US)
+        return when {
+            upper.contains("HDFC") -> "HDFC Bank"
+            upper.contains("SBI") -> "State Bank of India"
+            upper.contains("ICICI") -> "ICICI Bank"
+            upper.contains("AXIS") -> "Axis Bank"
+            upper.contains("KOTAK") -> "Kotak Mahindra"
+            upper.contains("BOB") || upper.contains("BARODA") -> "Bank of Baroda"
+            upper.contains("PNB") -> "Punjab National Bank"
+            upper.contains("CANARA") -> "Canara Bank"
+            upper.contains("UNION") -> "Union Bank"
+            upper.contains("IDFC") -> "IDFC First Bank"
+            upper.contains("INDUS") -> "IndusInd Bank"
+            upper.contains("YES") -> "Yes Bank"
+            upper.contains("PAYTM") -> "Paytm"
+            upper.contains("PHONEPE") -> "PhonePe"
+            else -> ""
+        }
     }
 
     /**
@@ -144,3 +232,19 @@ object MerchantNormalizer {
         }
     }
 }
+
+/**
+ * Extension function on domain [Transaction] to always get a clean, human-readable display merchant name.
+ */
+fun com.app.domain.model.Transaction.getCleanDisplayName(): String =
+    MerchantNormalizer.getDisplayMerchant(
+        alias = alias,
+        merchant = merchant,
+        upiId = upiId,
+        sender = sender,
+        method = method,
+        category = category,
+        type = type,
+        rawSms = rawSms,
+        description = description
+    )

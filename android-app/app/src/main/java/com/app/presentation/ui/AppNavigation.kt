@@ -554,52 +554,55 @@ fun FinanceAppRoot(
                             )
                         }
                         
-                        navigation(startDestination = "spaces", route = "spaces_graph") {
-                            composable(
-                                route = "spaces",
-                                deepLinks = listOf(navDeepLink { uriPattern = "budgi://spaces" })
-                            ) {
-                                com.app.presentation.ui.spaces.CollaborativeSpacesScreen(
-                                    windowSizeClass = windowSizeClass,
-                                    onNavigateToSpace = { id -> navController.navigate("space_detail/$id") },
-                                    onBack = { navController.popBackStack() }
-                                )
-                            }
-                            composable("space_detail/{spaceId}") { backStackEntry ->
-                                val spaceId = backStackEntry.arguments?.getString("spaceId") ?: return@composable
-                                com.app.presentation.ui.spaces.SpaceDetailScreen(
-                                    spaceId = spaceId,
-                                    windowSizeClass = windowSizeClass,
-                                    onBack = { navController.popBackStack() },
-                                    onInvite = { navController.navigate("space_invite/$spaceId") }
-                                )
-                            }
-                            composable("space_invite/{spaceId}") { backStackEntry ->
-                                val spaceId = backStackEntry.arguments?.getString("spaceId") ?: return@composable
-                                com.app.presentation.ui.spaces.InviteMemberScreen(
-                                    spaceId = spaceId,
-                                    onBack = { navController.popBackStack() }
-                                )
-                            }
-                            composable(
-                                route = "join_space?code={code}",
-                                deepLinks = listOf(navDeepLink { uriPattern = "budgi://invite?code={code}" })
-                            ) { backStackEntry ->
-                                val code = backStackEntry.arguments?.getString("code") ?: ""
-                                com.app.presentation.ui.spaces.JoinSpaceScreen(
-                                    inviteCode = code,
-                                    onJoined = {
-                                        navController.navigate("spaces") {
-                                            popUpTo("spaces_graph") { inclusive = true }
-                                        }
-                                    },
-                                    onCancel = {
-                                        navController.navigate("dashboard") {
-                                            popUpTo("dashboard") { inclusive = true }
-                                        }
+                        composable(
+                            route = "spaces",
+                            deepLinks = listOf(navDeepLink { uriPattern = "budgi://spaces" })
+                        ) {
+                            com.app.presentation.ui.spaces.CollaborativeSpacesScreen(
+                                windowSizeClass = windowSizeClass,
+                                onNavigateToSpace = { id -> navController.navigate("space_detail/$id") },
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable(route = "spaces_graph") {
+                            com.app.presentation.ui.spaces.CollaborativeSpacesScreen(
+                                windowSizeClass = windowSizeClass,
+                                onNavigateToSpace = { id -> navController.navigate("space_detail/$id") },
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable("space_detail/{spaceId}") { backStackEntry ->
+                            val spaceId = backStackEntry.arguments?.getString("spaceId") ?: return@composable
+                            com.app.presentation.ui.spaces.SpaceDetailScreen(
+                                spaceId = spaceId,
+                                windowSizeClass = windowSizeClass,
+                                onBack = { navController.popBackStack() },
+                                onInvite = { navController.navigate("space_invite/$spaceId") }
+                            )
+                        }
+                        composable("space_invite/{spaceId}") { backStackEntry ->
+                            val spaceId = backStackEntry.arguments?.getString("spaceId") ?: return@composable
+                            com.app.presentation.ui.spaces.InviteMemberScreen(
+                                spaceId = spaceId,
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable(
+                            route = "join_space?code={code}",
+                            deepLinks = listOf(navDeepLink { uriPattern = "budgi://invite?code={code}" })
+                        ) { backStackEntry ->
+                            val code = backStackEntry.arguments?.getString("code") ?: ""
+                            com.app.presentation.ui.spaces.JoinSpaceScreen(
+                                inviteCode = code,
+                                onJoined = {
+                                    navController.navigate("spaces")
+                                },
+                                onCancel = {
+                                    navController.navigate("dashboard") {
+                                        popUpTo("dashboard") { inclusive = true }
                                     }
-                                )
-                            }
+                                }
+                            )
                         }
 
                         navigation(startDestination = "profile", route = "profile_graph") {

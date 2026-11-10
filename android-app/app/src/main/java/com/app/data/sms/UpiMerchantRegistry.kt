@@ -144,10 +144,12 @@ class UpiMerchantRegistry @Inject constructor() {
             "fastag" to Pair("FASTag Toll", "Transport"),
             "nhai" to Pair("NHAI Toll", "Transport"),
             "ihmcl" to Pair("FASTag Toll", "Transport"),
+            "netc" to Pair("FASTag Toll", "Transport"),
             "hpcl" to Pair("HP Petrol Pump", "Transport"),
             "bpcl" to Pair("Bharat Petroleum", "Transport"),
             "iocl" to Pair("Indian Oil", "Transport"),
             "shell" to Pair("Shell Petrol", "Transport"),
+            "nayara" to Pair("Nayara Energy", "Transport"),
             "bounce" to Pair("Bounce", "Transport"),
             "yulu" to Pair("Yulu Bikes", "Transport"),
 
@@ -212,6 +214,12 @@ class UpiMerchantRegistry @Inject constructor() {
             "tatapower" to Pair("Tata Power", "Utilities & Bills"),
             "adani" to Pair("Adani Electricity", "Utilities & Bills"),
             "torrentpower" to Pair("Torrent Power", "Utilities & Bills"),
+            "uppcl" to Pair("UPPCL Electricity", "Utilities & Bills"),
+            "cesc" to Pair("CESC Electricity", "Utilities & Bills"),
+            "tsspdcl" to Pair("TSSPDCL Electricity", "Utilities & Bills"),
+            "bwssb" to Pair("BWSSB Water", "Utilities & Bills"),
+            "igl" to Pair("Indraprastha Gas", "Utilities & Bills"),
+            "mgl" to Pair("Mahanagar Gas", "Utilities & Bills"),
             "actfibernet" to Pair("ACT Fibernet", "Utilities & Bills"),
 
             // 💊 Health & Wellness
@@ -226,6 +234,9 @@ class UpiMerchantRegistry @Inject constructor() {
             "curefit" to Pair("Cult.fit", "Health & Wellness"),
             "healthians" to Pair("Healthians", "Health & Wellness"),
             "thyrocare" to Pair("Thyrocare", "Health & Wellness"),
+            "drlalpathlabs" to Pair("Dr Lal PathLabs", "Health & Wellness"),
+            "lalpathlabs" to Pair("Dr Lal PathLabs", "Health & Wellness"),
+            "metropolis" to Pair("Metropolis Healthcare", "Health & Wellness"),
             "maxhealthcare" to Pair("Max Healthcare", "Health & Wellness"),
             "fortis" to Pair("Fortis Hospital", "Health & Wellness"),
 
@@ -239,6 +250,9 @@ class UpiMerchantRegistry @Inject constructor() {
             "etmoney" to Pair("ET Money", "Investment"),
             "paytmmoney" to Pair("Paytm Money", "Investment"),
             "indmoney" to Pair("INDmoney", "Investment"),
+            "cams" to Pair("CAMS", "Investment"),
+            "kfintech" to Pair("KFintech", "Investment"),
+            "mfcentral" to Pair("MF Central", "Investment"),
             "navi" to Pair("Navi", "Investment"),
             "jupiter" to Pair("Jupiter Money", "Investment"),
             "fimoney" to Pair("Fi Money", "Investment"),
@@ -261,6 +275,8 @@ class UpiMerchantRegistry @Inject constructor() {
             "vedantu" to Pair("Vedantu", "Education"),
             "pw" to Pair("Physics Wallah", "Education"),
             "physicswallah" to Pair("Physics Wallah", "Education"),
+            "allen" to Pair("Allen Career Institute", "Education"),
+            "aakash" to Pair("Aakash Institute", "Education"),
 
             // 🎟️ Entertainment
             "bookmyshow" to Pair("BookMyShow", "Entertainment"),
@@ -299,9 +315,18 @@ class UpiMerchantRegistry @Inject constructor() {
             )
         }
 
-        // 2. Direct Brand Prefix Lookup in brand dictionary
+        // 2. Direct Brand Prefix Lookup in brand dictionary with word-boundary awareness
+        val tokens = localPart.split(Regex("""[._\-\s\d]+""")).filter { it.isNotBlank() }
         for ((key, pair) in BRAND_MAP) {
-            if (localPart.startsWith(key) || localPart.contains(key)) {
+            val isMatch = if (key.length <= 3) {
+                // Short keys (e.g. vi, hm, pw, mcd, kfc, ola, lic, mmt, jio, pvr, 1mg) require exact token match or delimiter boundary
+                tokens.contains(key) || localPart == key ||
+                    localPart.startsWith("${key}.") || localPart.startsWith("${key}_") || localPart.startsWith("${key}-")
+            } else {
+                localPart.startsWith(key) || tokens.any { it.startsWith(key) } ||
+                    (localPart.contains(key) && (localPart.contains("${key}.") || localPart.contains("${key}_") || localPart.contains("${key}-") || localPart.matches(Regex(""".*${Regex.escape(key)}\d+.*"""))))
+            }
+            if (isMatch) {
                 return UpiMerchantInfo(
                     merchantName = pair.first,
                     category = pair.second,

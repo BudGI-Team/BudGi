@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
@@ -31,8 +32,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.app.presentation.ui.theme.CategoryColors
 import com.app.presentation.ui.theme.BudgiRadius
+import com.app.presentation.ui.theme.DarkColors
+import com.app.presentation.ui.theme.Dimens
 import com.app.presentation.viewmodel.ProfileViewModel
 import kotlinx.coroutines.delay
 
@@ -136,7 +138,9 @@ fun AccountScreen(
         formatDobYMD(dateOfBirth) != initialDob
     }
 
-    val isDark = true
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val cardBorder = if (isDark) DarkColors.Border else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+    val cardBg = MaterialTheme.colorScheme.surface
 
     WalletoBackground {
         Scaffold(
@@ -165,15 +169,15 @@ fun AccountScreen(
                         Box(
                             modifier = Modifier
                                 .padding(end = 16.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(CategoryColors.Housing.copy(alpha = 0.15f))
-                                .border(0.5.dp, CategoryColors.Housing.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                .clip(RoundedCornerShape(BudgiRadius.Pill))
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                                .border(0.8.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), RoundedCornerShape(BudgiRadius.Pill))
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                "🔥 ${streakCount}d",
-                                color = CategoryColors.Housing,
-                                fontSize = 12.sp,
+                                "⚡ ${streakCount}d streak",
+                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 11.5.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -217,13 +221,13 @@ fun AccountScreen(
                     .padding(padding)
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                verticalArrangement = Arrangement.spacedBy(22.dp)
             ) {
                 // ── 1. AVATAR SELECTION HERO ──
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 10.dp),
+                        .padding(top = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
@@ -238,12 +242,12 @@ fun AccountScreen(
                                 .background(
                                     Brush.radialGradient(
                                         listOf(
-                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.20f),
                                             Color.Transparent
                                         )
                                     )
                                 )
-                                .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                .border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
                                 .clickable {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     photoLauncher.launch("image/*")
@@ -301,11 +305,11 @@ fun AccountScreen(
                                 photoLauncher.launch("image/*")
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
                                 contentColor = MaterialTheme.colorScheme.primary
                             ),
                             shape = RoundedCornerShape(BudgiRadius.Pill),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                         ) {
                             Icon(
@@ -328,11 +332,11 @@ fun AccountScreen(
                                     viewModel.removeProfilePicture()
                                 },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
+                                    containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.10f),
                                     contentColor = MaterialTheme.colorScheme.error
                                 ),
                                 shape = RoundedCornerShape(BudgiRadius.Pill),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f)),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.30f)),
                                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                             ) {
                                 Icon(
@@ -351,18 +355,20 @@ fun AccountScreen(
                     }
 
                     Text(
-                        text = "OR CHOOSE AVATAR PRESET",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        letterSpacing = 1.2.sp
+                        text = "AVATAR ARCHETYPE",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 10.5.sp,
+                            letterSpacing = 1.2.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     // Horizontal snap avatar choices
                     LazyRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp)
+                        contentPadding = PaddingValues(horizontal = 4.dp)
                     ) {
                         items(AVATAR_PRESETS) { (key, label) ->
                             val isSelected = selectedAvatar == key
@@ -370,15 +376,15 @@ fun AccountScreen(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(6.dp),
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(16.dp))
+                                    .clip(RoundedCornerShape(Dimens.cardCornerRadius))
                                     .background(
-                                        if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
-                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                        if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                        else cardBg
                                     )
                                     .border(
-                                        if (isSelected) 1.5.dp else 0.5.dp,
-                                        if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-                                        RoundedCornerShape(16.dp)
+                                        if (isSelected) 1.5.dp else 0.8.dp,
+                                        if (isSelected) MaterialTheme.colorScheme.primary else cardBorder,
+                                        RoundedCornerShape(Dimens.cardCornerRadius)
                                     )
                                     .clickable {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -403,7 +409,7 @@ fun AccountScreen(
                                             Icon(
                                                 Icons.Default.Check,
                                                 contentDescription = null,
-                                                tint = Color.White,
+                                                tint = MaterialTheme.colorScheme.onPrimary,
                                                 modifier = Modifier.size(12.dp)
                                             )
                                         }
@@ -422,210 +428,210 @@ fun AccountScreen(
 
                 // ── 2. PERSONAL IDENTITY SECTION ──
                 Text(
-                    "PERSONAL INFORMATION",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    letterSpacing = 1.sp
+                    text = "PERSONAL IDENTITY",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 11.sp,
+                        letterSpacing = 1.2.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                        .border(
-                            0.5.dp,
-                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
-                            RoundedCornerShape(20.dp)
-                        )
-                        .padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                Surface(
+                    shape = RoundedCornerShape(Dimens.cardCornerRadius),
+                    color = cardBg,
+                    border = BorderStroke(0.8.dp, cardBorder),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    // Full Name Field
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            "Full Name",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        MinimalistTextField(
-                            value = name,
-                            onValueChange = { name = it },
-                            placeholder = "First and Last Name"
-                        )
-                    }
-
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-
-                    // Username Field with live validation feedback
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // Full Name Field
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(
-                                "Unique Username",
+                                "Full Name",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            if (usernameAvailable == true && username.isNotBlank()) {
-                                Text(
-                                    "✓ Available",
-                                    color = CategoryColors.Groceries,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            } else if (usernameError != null) {
-                                Text(
-                                    usernameError!!,
-                                    color = MaterialTheme.colorScheme.error,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
+                            MinimalistTextField(
+                                value = name,
+                                onValueChange = { name = it },
+                                placeholder = "First and Last Name"
+                            )
                         }
-                        MinimalistTextField(
-                            value = username,
-                            onValueChange = { 
-                                username = it.removePrefix("@").replace(" ", "").lowercase()
-                            },
-                            placeholder = "@handle"
-                        )
-                    }
 
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
 
-                    // Date of Birth Field
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            "Date of Birth (YYYY-MM-DD)",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        MinimalistTextField(
-                            value = dateOfBirth,
-                            onValueChange = { input ->
-                                val filtered = input.filter { it.isDigit() || it == '-' }.take(10)
-                                dateOfBirth = filtered
-                            },
-                            placeholder = "2000-06-15"
-                        )
-                    }
-                }
-
-                // ── 3. FINANCIAL SETTINGS SECTION ──
-                Text(
-                    "FINANCIAL PREFERENCES",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    letterSpacing = 1.sp
-                )
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                        .border(
-                            0.5.dp,
-                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
-                            RoundedCornerShape(20.dp)
-                        )
-                        .padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    // Currency Chips
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            "Primary Currency",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            CURRENCY_PRESETS.forEach { (code, label) ->
-                                val isSelected = selectedCurrency == code
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(
-                                            if (isSelected) MaterialTheme.colorScheme.primary
-                                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                        )
-                                        .border(
-                                            0.5.dp,
-                                            if (isSelected) Color.Transparent
-                                            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-                                            RoundedCornerShape(12.dp)
-                                        )
-                                        .clickable {
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                            selectedCurrency = code
-                                        }
-                                        .padding(vertical = 10.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
+                        // Username Field with live validation feedback
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "Unique Handle",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                if (usernameAvailable == true && username.isNotBlank()) {
                                     Text(
-                                        text = label,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onBackground
+                                        "✓ Available",
+                                        color = MaterialTheme.colorScheme.primary,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                } else if (usernameError != null) {
+                                    Text(
+                                        usernameError!!,
+                                        color = MaterialTheme.colorScheme.error,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold
                                     )
                                 }
                             }
+                            MinimalistTextField(
+                                value = username,
+                                onValueChange = { 
+                                    username = it.removePrefix("@").replace(" ", "").lowercase()
+                                },
+                                placeholder = "@handle"
+                            )
+                        }
+
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                        // Date of Birth Field
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                "Date of Birth (YYYY-MM-DD)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            MinimalistTextField(
+                                value = dateOfBirth,
+                                onValueChange = { input ->
+                                    val filtered = input.filter { it.isDigit() || it == '-' }.take(10)
+                                    dateOfBirth = filtered
+                                },
+                                placeholder = "2000-06-15"
+                            )
                         }
                     }
+                }
 
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+                // ── 3. FINANCIAL PREFERENCES SECTION ──
+                Text(
+                    text = "LEDGER & REGIONAL PREFERENCES",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 11.sp,
+                        letterSpacing = 1.2.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
-                    // Monthly Income / Target
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            "Monthly Budget / Income Target",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        MinimalistTextField(
-                            value = monthlyIncome,
-                            onValueChange = { 
-                                if (it.all { char -> char.isDigit() }) monthlyIncome = it 
-                            },
-                            placeholder = "e.g. 50000"
-                        )
+                Surface(
+                    shape = RoundedCornerShape(Dimens.cardCornerRadius),
+                    color = cardBg,
+                    border = BorderStroke(0.8.dp, cardBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // Currency Chips
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                "Primary Currency",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                CURRENCY_PRESETS.forEach { (code, label) ->
+                                    val isSelected = selectedCurrency == code
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(
+                                                if (isSelected) MaterialTheme.colorScheme.primary
+                                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                            )
+                                            .border(
+                                                if (isSelected) 1.dp else 0.8.dp,
+                                                if (isSelected) MaterialTheme.colorScheme.primary
+                                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                                                RoundedCornerShape(12.dp)
+                                            )
+                                            .clickable {
+                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                selectedCurrency = code
+                                            }
+                                            .padding(vertical = 10.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                        // Monthly Income / Target
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                "Monthly Income Target",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            MinimalistTextField(
+                                value = monthlyIncome,
+                                onValueChange = { 
+                                    if (it.all { char -> char.isDigit() }) monthlyIncome = it 
+                                },
+                                placeholder = "e.g. 50000"
+                            )
+                        }
                     }
                 }
 
                 // ── 4. CREDENTIALS & ACCOUNT SECURITY ──
                 Text(
-                    "ACCOUNT CREDENTIALS",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    letterSpacing = 1.sp
+                    text = "CONTACT CREDENTIALS",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 11.sp,
+                        letterSpacing = 1.2.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                        .border(
-                            0.5.dp,
-                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
-                            RoundedCornerShape(20.dp)
-                        )
-                        .padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                Surface(
+                    shape = RoundedCornerShape(Dimens.cardCornerRadius),
+                    color = cardBg,
+                    border = BorderStroke(0.8.dp, cardBorder),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    AccountFieldItem("Email Address", email, Icons.Default.Email)
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-                    AccountFieldItem("Linked Phone", phone, Icons.Default.Phone)
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        AccountFieldItem("Email Address", email, Icons.Default.Email)
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+                        AccountFieldItem("Linked Phone", phone, Icons.Default.Phone)
+                    }
                 }
 
                 // ── 5. FEEDBACK MESSAGES ──
@@ -634,13 +640,13 @@ fun AccountScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
-                            .background(CategoryColors.Groceries.copy(alpha = 0.15f))
-                            .border(1.dp, CategoryColors.Groceries.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
                             .padding(12.dp)
                     ) {
                         Text(
-                            "✓ ${uiState.message}",
-                            color = CategoryColors.Groceries,
+                            text = "✓ ${uiState.message}",
+                            color = MaterialTheme.colorScheme.primary,
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -651,13 +657,13 @@ fun AccountScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.15f))
+                            .background(MaterialTheme.colorScheme.errorContainer)
                             .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
                             .padding(12.dp)
                     ) {
                         Text(
-                            "⚠ ${uiState.error}",
-                            color = MaterialTheme.colorScheme.error,
+                            text = "⚠ ${uiState.error}",
+                            color = MaterialTheme.colorScheme.onErrorContainer,
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -673,13 +679,21 @@ fun AccountScreen(
 @Composable
 private fun AccountFieldItem(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(
-            icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(modifier = Modifier.width(16.dp))
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        Spacer(modifier = Modifier.width(14.dp))
         Column {
             Text(
                 label,

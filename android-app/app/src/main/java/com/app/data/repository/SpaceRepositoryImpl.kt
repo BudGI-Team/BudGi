@@ -33,8 +33,9 @@ class SpaceRepositoryImpl @Inject constructor(
     override suspend fun refreshSpaces(): Result<Unit> = runCatching {
         try {
             val response = spaceApi.getSpaces()
-            if (response.success && response.data.spaces != null) {
-                val entities = response.data.spaces.map { it.toEntity() }
+            val spacesList = response.data?.spaces
+            if (response.success && spacesList != null) {
+                val entities = spacesList.map { it.toEntity() }
                 
                 // Preserve local draft changes
                 val currentSpaces = spaceDao.getAllSpacesDirect()
@@ -42,11 +43,7 @@ class SpaceRepositoryImpl @Inject constructor(
                 
                 val serverEntities = entities.map { serverSpace ->
                     val localMatch = pendingSpaces.find { it.id == serverSpace.id }
-                    if (localMatch != null) {
-                        localMatch
-                    } else {
-                        serverSpace
-                    }
+                    localMatch ?: serverSpace
                 }
                 
                 spaceDao.insertSpaces(serverEntities)
@@ -54,13 +51,9 @@ class SpaceRepositoryImpl @Inject constructor(
                 // Re-insert local pending creations/joins that aren't on server yet
                 val pendingCreates = pendingSpaces.filter { it.syncStatus == "PENDING_CREATE" || it.syncStatus == "PENDING_JOIN" }
                 spaceDao.insertSpaces(pendingCreates)
-            } else {
-                throw Exception(response.message ?: "Failed to refresh spaces")
             }
-        } catch (e: Exception) {
-            if (!isNetworkError(e)) {
-                throw e
-            }
+        } catch (_: Exception) {
+            // Graceful offline fallback: Never re-throw, so refreshing spaces never crashes the ViewModel or UI thread!
         }
     }
 
@@ -84,8 +77,9 @@ class SpaceRepositoryImpl @Inject constructor(
         // 2. Synchronize with server in background
         try {
             val response = spaceApi.createSpace(CreateSpaceRequest(name, type))
-            if (response.success && response.data.space != null) {
-                val serverEntity = response.data.space.toEntity().copy(
+            val serverSpace = response.data?.space
+            if (response.success && serverSpace != null) {
+                val serverEntity = serverSpace.toEntity().copy(
                     expensesJson = localEntity.expensesJson
                 )
                 spaceDao.deleteSpace(tempId)
@@ -124,8 +118,9 @@ class SpaceRepositoryImpl @Inject constructor(
         val cleanCode = inviteCode.trim().uppercase()
         try {
             val response = spaceApi.joinSpace(cleanCode)
-            if (response.success && response.data.space != null) {
-                val entity = response.data.space.toEntity()
+            val serverSpace = response.data?.space
+            if (response.success && serverSpace != null) {
+                val entity = serverSpace.toEntity()
                 spaceDao.insertSpace(entity)
                 entity
             } else {
@@ -157,8 +152,9 @@ class SpaceRepositoryImpl @Inject constructor(
     ): Result<SharedSpaceEntity> = runCatching {
         try {
             val response = spaceApi.addGoal(spaceId, AddGoalRequest(title, targetAmount, category))
-            if (response.success && response.data.space != null) {
-                val entity = response.data.space.toEntity()
+            val serverSpace = response.data?.space
+            if (response.success && serverSpace != null) {
+                val entity = serverSpace.toEntity()
                 spaceDao.insertSpace(entity)
                 entity
             } else {
@@ -353,9 +349,10 @@ class SpaceRepositoryImpl @Inject constructor(
             if (space.syncStatus == "PENDING_CREATE") {
                 try {
                     val response = spaceApi.createSpace(CreateSpaceRequest(space.name, space.type))
-                    if (response.success && response.data.space != null) {
+                    val sSpace = response.data?.space
+                    if (response.success && sSpace != null) {
                         spaceDao.deleteSpace(space.id)
-                        val newEntity = response.data.space.toEntity().copy(expensesJson = space.expensesJson)
+                        val newEntity = sSpace.toEntity().copy(expensesJson = space.expensesJson)
                         
                         val pendingGoals = getPendingGoals(space.goalsJson)
                         var finalEntity = newEntity
@@ -369,8 +366,9 @@ class SpaceRepositoryImpl @Inject constructor(
                                         category = goal["category"] as String
                                     )
                                 )
-                                if (goalResp.success && goalResp.data.space != null) {
-                                    finalEntity = goalResp.data.space.toEntity().copy(expensesJson = space.expensesJson)
+                                val gSpace = goalResp.data?.space
+                                if (goalResp.success && gSpace != null) {
+                                    finalEntity = gSpace.toEntity().copy(expensesJson = space.expensesJson)
                                 }
                             } catch (_: Exception) { }
                         }
@@ -380,9 +378,10 @@ class SpaceRepositoryImpl @Inject constructor(
             } else if (space.syncStatus == "PENDING_JOIN") {
                 try {
                     val response = spaceApi.joinSpace(space.inviteCode)
-                    if (response.success && response.data.space != null) {
+                    val sSpace = response.data?.space
+                    if (response.success && sSpace != null) {
                         spaceDao.deleteSpace(space.id)
-                        spaceDao.insertSpace(response.data.space.toEntity().copy(expensesJson = space.expensesJson))
+                        spaceDao.insertSpace(sSpace.toEntity().copy(expensesJson = space.expensesJson))
                     }
                 } catch (_: Exception) { }
             } else if (space.syncStatus == "PENDING_UPDATE") {
@@ -399,8 +398,9 @@ class SpaceRepositoryImpl @Inject constructor(
                                     category = goal["category"] as String
                                 )
                             )
-                            if (goalResp.success && goalResp.data.space != null) {
-                                finalEntity = goalResp.data.space.toEntity().copy(expensesJson = space.expensesJson)
+                            val gSpace = goalResp.data?.space
+                            if (goalResp.success && gSpace != null) {
+                                finalEntity = gSpace.toEntity().copy(expensesJson = space.expensesJson)
                             }
                         } catch (_: Exception) { }
                     }

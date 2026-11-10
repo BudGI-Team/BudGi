@@ -63,6 +63,12 @@ object AppModule {
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "finance-db")
             .addMigrations(AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15)
+            .addCallback(object : androidx.room.RoomDatabase.Callback() {
+                override fun onOpen(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                    super.onOpen(db)
+                    db.execSQL("CREATE TABLE IF NOT EXISTS shared_spaces (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `type` TEXT NOT NULL, `inviteCode` TEXT NOT NULL, `membersJson` TEXT NOT NULL, `goalsJson` TEXT NOT NULL, `expensesJson` TEXT NOT NULL DEFAULT '[]', `syncStatus` TEXT NOT NULL DEFAULT 'SYNCED', PRIMARY KEY(`id`))")
+                }
+            })
             // SAFE: Only destroys data from versions BEFORE current.
             .fallbackToDestructiveMigration(true)
             .fallbackToDestructiveMigrationOnDowngrade(true)

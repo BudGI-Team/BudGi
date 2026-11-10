@@ -150,13 +150,22 @@ class TransactionCategoryClassifier @Inject constructor() {
 
     // ── Signal scoring helpers ──────────────────────────────────────────
 
+    private fun isKeywordMatched(text: String, kw: String): Boolean {
+        if (kw.length <= 4) {
+            // Strict word boundary to avoid false substring matches like "solapur" -> "ola", "vocabulary" -> "cab", "public" -> "lic", "mumbai" -> "bai"
+            val pattern = """\b${Regex.escape(kw.trim())}\b"""
+            return Regex(pattern, RegexOption.IGNORE_CASE).containsMatchIn(text)
+        }
+        return text.contains(kw, ignoreCase = true)
+    }
+
     private fun calculateKeywordScore(category: String, text: String): Double {
         val keywords = RULES[category] ?: return 0.0
         var matches = 0
         var totalWeight = 0.0
 
         for (kw in keywords) {
-            if (text.contains(kw)) {
+            if (isKeywordMatched(text, kw)) {
                 matches++
                 totalWeight += if (kw.length > 5) 1.2 else 1.0
             }
@@ -274,7 +283,7 @@ class TransactionCategoryClassifier @Inject constructor() {
         val targetKeywords = RULES[category] ?: return 0.0
 
         for (kw in targetKeywords) {
-            if (merchant.contains(kw) || upiId.contains(kw)) {
+            if (isKeywordMatched(merchant, kw) || isKeywordMatched(upiId, kw)) {
                 return 1.0
             }
         }
@@ -396,24 +405,26 @@ class TransactionCategoryClassifier @Inject constructor() {
             ),
             "Transport" to listOf(
                 "uber", "ola", "rapido", "irctc", "metro", "petrol", "fuel", "shell",
-                "hpcl", "bpcl", "iocl", "makemytrip", "indigo", "goibibo", "yatra",
-                "cleartrip", "vistara", "spicejet", "airindia", "parking", "toll",
-                "fastag", "nhai", "redbus", "abhibus", "blablacar", "drivezy", "bounce",
-                "cab", "taxi", "diesel", "cng", "indian oil", "bharat petroleum"
+                "hpcl", "bpcl", "iocl", "nayara", "makemytrip", "indigo", "goibibo", "yatra",
+                "cleartrip", "vistara", "spicejet", "airindia", "akasa", "parking", "toll",
+                "fastag", "nhai", "ihmcl", "netc", "redbus", "abhibus", "blablacar", "drivezy", "bounce",
+                "cab", "taxi", "diesel", "cng", "indian oil", "bharat petroleum", "hindustan petroleum"
             ),
             "Shopping" to listOf(
                 "amazon", "flipkart", "myntra", "ajio", "nykaa", "meesho", "shopping",
                 "mall", "dmart", "reliance", "tatacliq", "snapdeal", "shopclues",
                 "firstcry", "bewakoof", "decathlon", "croma", "vijaysales", "lenskart",
                 "pepperfry", "ikea", "urbanladder", "fabindia", "westside", "pantaloons",
-                "shoppers", "lifestyle", "max fashion", "h&m", "zara", "ekart",
-                "footwear", "clothing", "apparel", "jewellers", "bazaar"
+                "shoppers", "lifestyle", "max fashion", "h&m", "zara", "uniqlo", "trends",
+                "zudio", "snitch", "ekart", "footwear", "clothing", "apparel", "jewellers", "bazaar"
             ),
             "Utilities & Bills" to listOf(
                 "electricity", "water", "gas bill", "broadband", "jio", "airtel", "vi ",
                 "bsnl", "bill pay", "maintenance", "internet", "wifi", "tatasky", "dth",
                 "dish tv", "postpaid", "prepaid", "landline", "piped gas", "electricity bill",
-                "power corp", "vidyut"
+                "power corp", "vidyut", "bescom", "msedcl", "tata power", "torrent power",
+                "adani electricity", "uppcl", "cesc", "tsspdcl", "bwssb", "igl", "mgl",
+                "mahanagar gas", "indraprastha gas", "act fibernet"
             ),
             "Insurance" to listOf(
                 "insurance", "lic", "policybazaar", "acko", "digit insurance", "hdfc ergo",
@@ -424,24 +435,25 @@ class TransactionCategoryClassifier @Inject constructor() {
                 "pharmacy", "apollo", "1mg", "tata 1mg", "hospital", "doctor", "gym",
                 "cult.fit", "cultfit", "curefit", "medical", "medplus", "netmeds",
                 "pharmeasy", "practo", "lybrate", "clinic", "diagnostic", "lab test",
-                "healthian", "thyrocare", "dental", "eye care", "medicos", "druggist",
+                "healthian", "thyrocare", "dr lal pathlabs", "lal pathlabs", "metropolis",
+                "max healthcare", "fortis", "dental", "eye care", "medicos", "druggist",
                 "chemist", "fitness"
             ),
             "Entertainment" to listOf(
-                "bookmyshow", "pvr", "inox", "gaming", "steam", "playstation", "xbox",
+                "bookmyshow", "pvr", "inox", "cinepolis", "gaming", "steam", "playstation", "xbox",
                 "jiocinema", "zee5", "sonyliv", "voot", "mubi", "cinema", "theatre",
                 "concert", "event", "carnival"
             ),
             "Investment" to listOf(
                 "zerodha", "groww", "upstox", "sip", "mutual fund", "stock", "demat",
-                "trading", "coin", "kuvera", "smallcase", "angel", "edelweiss",
-                "paytm money", "et money", "ppf", "nps", "fixed deposit", "navi",
-                "slice", "jupiter", "fi money", "bonds", "gold"
+                "trading", "coin", "kuvera", "smallcase", "angel", "angelone", "edelweiss",
+                "paytm money", "et money", "indmoney", "cams", "kfintech", "mf central",
+                "ppf", "nps", "fixed deposit", "navi", "slice", "jupiter", "fi money", "bonds", "gold"
             ),
             "Education" to listOf(
                 "school", "college", "university", "tuition", "course", "udemy",
-                "coursera", "byjus", "unacademy", "vedantu", "exam", "books",
-                "stationery", "library", "coaching", "fees", "academy"
+                "coursera", "byjus", "unacademy", "vedantu", "allen", "aakash", "physics wallah",
+                "exam", "books", "stationery", "library", "coaching", "fees", "academy"
             ),
             "Recharge" to listOf(
                 "recharge", "top up", "topup", "mobile recharge", "data pack",

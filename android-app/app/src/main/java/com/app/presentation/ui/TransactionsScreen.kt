@@ -46,6 +46,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.text.style.TextOverflow
 import com.app.utils.DateUtils
+import com.app.data.sms.getCleanDisplayName
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -190,9 +191,9 @@ fun TransactionsScreen(
 
         transactions.filter { tx ->
             val matchCategory = selectedCategory == "All" || tx.category.equals(selectedCategory, ignoreCase = true)
+            val cleanName = tx.getCleanDisplayName()
             val matchSearch = searchQuery.isBlank() ||
-                    tx.merchant?.contains(searchQuery, ignoreCase = true) == true ||
-                    tx.sender.contains(searchQuery, ignoreCase = true) ||
+                    cleanName.contains(searchQuery, ignoreCase = true) ||
                     tx.category.contains(searchQuery, ignoreCase = true)
 
             val txDate = DateUtils.parseIsoDateToLocalDate(tx.date)
@@ -1206,7 +1207,7 @@ fun TransactionsScreen(
 
                             items(items, key = { it.id }) { transaction ->
                                 TransactionItem(
-                                    merchant = transaction.alias?.takeIf { it.isNotBlank() } ?: transaction.merchant ?: transaction.sender,
+                                    merchant = transaction.getCleanDisplayName(),
                                     category = transaction.category,
                                     amount = if (transaction.amount % 1.0 == 0.0) "%,.0f".format(transaction.amount) else "%,.2f".format(transaction.amount),
                                     date = DateUtils.formatDisplayTime(transaction.date, transaction.timestamp),
@@ -2046,7 +2047,7 @@ private fun exportTransactionsToCsv(context: android.content.Context, uri: andro
             writer.append("Date,Merchant,Category,Amount,Type,Reference\n")
             transactions.forEach { tx ->
                 val dateStr = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(DateUtils.parseIsoDateToMillis(tx.date)))
-                val merchant = (tx.merchant ?: tx.sender).replace(",", " ")
+                val merchant = tx.getCleanDisplayName().replace(",", " ")
                 val category = tx.category.replace(",", " ")
                 writer.append("$dateStr,$merchant,$category,${tx.amount},${tx.type},${tx.referenceNumber ?: ""}\n")
             }

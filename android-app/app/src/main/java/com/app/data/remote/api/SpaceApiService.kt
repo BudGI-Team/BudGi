@@ -54,7 +54,7 @@ data class SpaceGoalDto(
 data class SpaceResponse(
     @SerializedName("success") val success: Boolean = false,
     @SerializedName("message") val message: String? = null,
-    @SerializedName("data") val data: SpaceDataWrapper = SpaceDataWrapper(null, null)
+    @SerializedName("data") val data: SpaceDataWrapper? = null
 )
 
 data class SpaceDataWrapper(

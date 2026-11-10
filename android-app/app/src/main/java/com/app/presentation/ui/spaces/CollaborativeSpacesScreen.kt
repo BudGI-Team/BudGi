@@ -20,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -369,7 +370,11 @@ fun CollaborativeSpacesScreen(
 
                 PullToRefreshContainer(
                     state = pullToRefreshState,
-                    modifier = Modifier.align(Alignment.TopCenter)
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .scale(0.85f),
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.primary
                 )
             }
         }
@@ -405,10 +410,10 @@ fun SpaceCard(space: SharedSpaceEntity, onClick: () -> Unit) {
     val gson = remember { Gson() }
     val mapType = remember { object : TypeToken<List<Map<String, Any>>>() {}.type }
     val members: List<Map<String, Any>> = remember(space.membersJson) {
-        try { gson.fromJson(space.membersJson, mapType) } catch (e: Exception) { emptyList() }
+        try { gson.fromJson<List<Map<String, Any>>>(space.membersJson, mapType) ?: emptyList() } catch (_: Exception) { emptyList() }
     }
     val goals: List<Map<String, Any>> = remember(space.goalsJson) {
-        try { gson.fromJson(space.goalsJson, mapType) } catch (e: Exception) { emptyList() }
+        try { gson.fromJson<List<Map<String, Any>>>(space.goalsJson, mapType) ?: emptyList() } catch (_: Exception) { emptyList() }
     }
 
     val totalSaved = remember(goals) {
@@ -420,19 +425,19 @@ fun SpaceCard(space: SharedSpaceEntity, onClick: () -> Unit) {
     val progress = if (totalTarget > 0) (totalSaved / totalTarget).toFloat().coerceIn(0f, 1f) else 0f
 
     val expenses: List<Map<String, Any>> = remember(space.expensesJson) {
-        try { gson.fromJson(space.expensesJson, mapType) } catch (e: Exception) { emptyList() }
+        try { gson.fromJson<List<Map<String, Any>>>(space.expensesJson, mapType) ?: emptyList() } catch (_: Exception) { emptyList() }
     }
     val totalExpenseSum = remember(expenses) {
         expenses.filterNot { it["isSettlement"] == true }.sumOf { (it["amount"] as? Number)?.toDouble() ?: 0.0 }
     }
 
     // Use strictly dashboard tokens: primary and secondary
-    val spaceType = (space.type ?: "CUSTOM").trim().uppercase()
+    val spaceType = space.type.trim().uppercase()
     val (icon, typeLabel) = when (spaceType) {
         "COUPLE" -> Pair(Icons.Default.Favorite, "Couple")
         "ROOMMATES" -> Pair(Icons.Default.Home, "Roommates")
         "FAMILY" -> Pair(Icons.Default.FamilyRestroom, "Family")
-        else -> Pair(Icons.Default.Groups, if (space.type.isNullOrBlank()) "Custom" else space.type.lowercase().replaceFirstChar { it.uppercase() })
+        else -> Pair(Icons.Default.Groups, if (space.type.isBlank()) "Custom" else space.type.lowercase().replaceFirstChar { it.uppercase() })
     }
 
     val isDark = LocalIsDarkTheme.current

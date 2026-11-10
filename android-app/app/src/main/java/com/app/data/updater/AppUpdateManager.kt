@@ -35,7 +35,7 @@ sealed interface UpdateState {
 
 @Singleton
 class AppUpdateManager @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val apiService: AppUpdateApiService,
     private val okHttpClient: OkHttpClient
 ) {

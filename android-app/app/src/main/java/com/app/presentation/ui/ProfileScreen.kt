@@ -423,17 +423,6 @@ fun ProfileScreen(
                                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
                                 )
                                 ProfileSettingsRow(
-                                    icon = Icons.Outlined.Settings,
-                                    iconTint = CategoryColors.Shopping,
-                                    iconBg = CategoryColors.Shopping.copy(alpha = 0.15f),
-                                    title = "Settings & Preferences",
-                                    onClick = { onNavigate("profile_settings") }
-                                )
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(start = 68.dp, end = 16.dp),
-                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-                                )
-                                ProfileSettingsRow(
                                     icon = Icons.Outlined.Tune,
                                     iconTint = CategoryColors.Flight,
                                     iconBg = CategoryColors.Flight.copy(alpha = 0.15f),

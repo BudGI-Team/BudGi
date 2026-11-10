@@ -48,6 +48,7 @@ import com.app.R
 import com.app.presentation.ui.theme.*
 import com.app.presentation.viewmodel.DashboardUiState
 import com.app.presentation.viewmodel.DateFilter
+import com.app.data.sms.getCleanDisplayName
 import com.app.utils.DateUtils
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.ReceiptLong
@@ -523,7 +524,7 @@ fun DashboardScreen(
                 Spacer(modifier = Modifier.height(134.dp))
             }
 
-            // ── Top Loading Sync Animation Capsule (Promising, High-Tech, Reassuring) ──
+            // ── Top Loading Sync Animation Capsule (Compact, Developer-Grade, Theme-Integrated) ──
             val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
             AnimatedVisibility(
                 visible = state.syncing || state.loading || pullToRefreshState.isRefreshing,
@@ -543,79 +544,73 @@ fun DashboardScreen(
                 Surface(
                     modifier = Modifier
                         .shadow(
-                            elevation = 18.dp,
-                            shape = RoundedCornerShape(24.dp),
-                            ambientColor = Color.Black.copy(alpha = 0.50f),
-                            spotColor = Color(0xFF10B981).copy(alpha = 0.45f)
+                            elevation = 8.dp,
+                            shape = RoundedCornerShape(18.dp),
+                            ambientColor = Color.Black.copy(alpha = 0.30f),
+                            spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
                         ),
-                    shape = RoundedCornerShape(24.dp),
-                    color = if (isDark) Color(0xFF0F1523) else Color.White,
+                    shape = RoundedCornerShape(18.dp),
+                    color = if (isDark) DarkColors.BgElevated else MaterialTheme.colorScheme.surface,
                     border = androidx.compose.foundation.BorderStroke(
-                        width = 1.2.dp,
-                        brush = Brush.horizontalGradient(
-                            listOf(
-                                Color(0xFF10B981).copy(alpha = 0.85f),
-                                Color(0xFF38BDF8).copy(alpha = 0.85f),
-                                Color(0xFF10B981).copy(alpha = 0.85f)
-                            )
-                        )
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.40f)
                     )
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 9.dp),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         // Live Radar Beacon
                         Box(
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(14.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(18.dp)
+                                    .size(14.dp)
                                     .scale(radarPulse)
                                     .clip(CircleShape)
-                                    .background(Color(0xFF10B981).copy(alpha = radarAlpha))
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = radarAlpha))
                             )
                             Icon(
                                 imageVector = Icons.Default.Sync,
                                 contentDescription = "Syncing",
-                                tint = Color(0xFF10B981),
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier
-                                    .size(15.dp)
+                                    .size(12.dp)
                                     .rotate(syncAngle)
                             )
                         }
 
                         Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                             Text(
-                                text = if (state.syncing) "Synchronizing Bank Ledgers..." else "Refreshing Ledger Telemetry...",
+                                text = if (state.syncing) "Synchronizing Ledger..." else "Refreshing Financial Telemetry...",
                                 style = MaterialTheme.typography.labelMedium.copy(
-                                    fontSize = 12.5.sp,
+                                    fontSize = 11.5.sp,
                                     letterSpacing = 0.2.sp
                                 ),
                                 fontWeight = FontWeight.Bold,
-                                color = if (isDark) Color.White else Color(0xFF0F172A)
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(6.dp)
+                                        .size(5.dp)
                                         .clip(CircleShape)
-                                        .background(Color(0xFF10B981))
+                                        .background(MaterialTheme.colorScheme.primary)
                                 )
                                 Text(
-                                    text = "AUTONOMOUS LEDGER ENGINE • LIVE SYNC",
+                                    text = "AUTONOMOUS LEDGER • LIVE SYNC",
                                     style = MaterialTheme.typography.labelSmall.copy(
-                                        fontSize = 9.5.sp,
-                                        letterSpacing = 0.8.sp,
+                                        fontSize = 8.5.sp,
+                                        letterSpacing = 0.6.sp,
                                         fontWeight = FontWeight.Bold
                                     ),
-                                    color = Color(0xFF10B981)
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             }
                         }
@@ -627,9 +622,10 @@ fun DashboardScreen(
                 state = pullToRefreshState,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .statusBarsPadding(),
-                containerColor = if (isDark) Color(0xFF111622) else Color.White,
-                contentColor = Color(0xFF10B981)
+                    .statusBarsPadding()
+                    .scale(0.85f),
+                containerColor = if (isDark) DarkColors.BgElevated else MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.primary
             )
 
             // ── Floating Quick Action Pill placed just above bottom navbar with clean distance ──
@@ -682,9 +678,9 @@ private fun extractSubscriptions(transactions: List<com.app.domain.model.Transac
         }
     }
 
-    // Frequency-based recurring detection: same merchant, same amount ~monthly
+    // Frequency-based recurring detection: same clean merchant name, same amount ~monthly
     val frequencyRecurring = validExpenses
-        .groupBy { (it.merchant ?: it.sender).lowercase().trim() }
+        .groupBy { it.getCleanDisplayName().lowercase().trim() }
         .filter { (_, txs) ->
             if (txs.size >= 2) {
                 val sorted = txs.sortedByDescending { it.timestamp }
@@ -697,7 +693,7 @@ private fun extractSubscriptions(transactions: List<com.app.domain.model.Transac
         .mapNotNull { it.maxByOrNull { tx -> tx.timestamp } }
 
     return (explicitRecurring + keywordMatches + frequencyRecurring)
-        .groupBy { (it.merchant ?: it.description).lowercase().trim() }
+        .groupBy { it.getCleanDisplayName().lowercase().trim() }
         .map { entry -> entry.value.maxByOrNull { it.timestamp } ?: entry.value.first() }
         .take(5)
 }
@@ -710,7 +706,7 @@ private fun getInsightMessage(
         it.isAnomaly && (System.currentTimeMillis() - it.timestamp) < 14L * 24 * 3600 * 1000
     }
     if (recentAnomaly != null) {
-        val title = recentAnomaly.merchant ?: recentAnomaly.description
+        val title = recentAnomaly.getCleanDisplayName()
         return "Spending Spike Detected: ₹${"%,.0f".format(recentAnomaly.amount)} at $title is significantly higher than your typical ${recentAnomaly.category} spend."
     }
 
@@ -779,7 +775,7 @@ private fun RecentActivitySection(state: DashboardUiState, onSeeAllTransactions:
             ) {
                 displayList.forEach { transaction ->
                     TransactionItem(
-                        merchant = transaction.alias?.takeIf { it.isNotBlank() } ?: transaction.merchant ?: transaction.sender,
+                        merchant = transaction.getCleanDisplayName(),
                         category = transaction.category,
                         amount = if (transaction.amount % 1.0 == 0.0) "%,.0f".format(transaction.amount) else "%,.2f".format(transaction.amount),
                         date = DateUtils.formatDisplayTime(transaction.date, transaction.timestamp),
@@ -1442,15 +1438,16 @@ fun HomeScreenTotalBalanceCard(
     val bgColor = MaterialTheme.colorScheme.background
     val haptic = LocalHapticFeedback.current
 
-    val balanceAmount = remember(state.transactions, state.analyticsSummary) {
-        // True multi-account aggregation: sum latest available balance across each distinct bank account
-        val latestPerAccount = state.transactions
+    // Find the latest arriving SMS transaction that reported an available balance (avlbal)
+    val latestBalanceTx = remember(state.transactions) {
+        state.transactions
             .filter { it.availableBalance != null && it.availableBalance >= 0.0 }
-            .groupBy { it.accountLast4?.ifBlank { null } ?: it.sender.ifBlank { "default" } }
-            .mapValues { entry -> entry.value.maxByOrNull { it.timestamp }?.availableBalance ?: 0.0 }
+            .maxByOrNull { it.timestamp }
+    }
 
-        if (latestPerAccount.isNotEmpty()) {
-            latestPerAccount.values.sum()
+    val balanceAmount = remember(state.transactions, state.analyticsSummary, latestBalanceTx) {
+        if (latestBalanceTx?.availableBalance != null) {
+            latestBalanceTx.availableBalance
         } else if (state.transactions.isNotEmpty()) {
             val income = state.transactions.filter { it.type.equals("income", ignoreCase = true) || it.type.equals("credit", ignoreCase = true) }.sumOf { it.amount }
             val expense = state.transactions.filter { it.type.equals("expense", ignoreCase = true) || it.type.equals("debit", ignoreCase = true) }.sumOf { it.amount }
@@ -1469,11 +1466,13 @@ fun HomeScreenTotalBalanceCard(
         val exp = state.transactions.filter { it.type.equals("expense", ignoreCase = true) || it.type.equals("debit", ignoreCase = true) }.sumOf { it.amount }
         if (exp > 0.0) exp else state.analyticsSummary.monthlySpending
     }
-    val realAccountLast4 = remember(state.transactions) {
-        state.transactions.firstOrNull { !it.accountLast4.isNullOrBlank() }?.accountLast4
+    val realAccountLast4 = remember(state.transactions, latestBalanceTx) {
+        latestBalanceTx?.accountLast4?.takeIf { it.isNotBlank() }
+            ?: state.transactions.firstOrNull { !it.accountLast4.isNullOrBlank() }?.accountLast4
     }
-    val realBankName = remember(state.transactions) {
-        state.transactions.firstOrNull { it.sender.isNotBlank() }?.let {
+    val realBankName = remember(state.transactions, latestBalanceTx) {
+        val targetTx = latestBalanceTx ?: state.transactions.firstOrNull { it.sender.isNotBlank() }
+        targetTx?.let {
             val s = it.sender.uppercase()
             when {
                 s.contains("HDFC") -> "HDFC Bank"
@@ -1483,6 +1482,12 @@ fun HomeScreenTotalBalanceCard(
                 s.contains("KOTAK") -> "Kotak Mahindra"
                 s.contains("PNB") -> "Punjab National Bank"
                 s.contains("BOB") || s.contains("BARODA") -> "Bank of Baroda"
+                s.contains("CANARA") -> "Canara Bank"
+                s.contains("UNION") -> "Union Bank"
+                s.contains("IDFC") -> "IDFC First Bank"
+                s.contains("INDUS") -> "IndusInd Bank"
+                s.contains("YES") -> "Yes Bank"
+                it.sender.isNotBlank() -> it.sender.replace("-", " ").trim()
                 else -> null
             }
         } ?: "BudGi Primary"
@@ -2268,8 +2273,7 @@ fun MicroSpendCatchUpCard(
     val currentTx = unreviewedTransactions.getOrElse(validIndex) { unreviewedTransactions.first() }
 
     val friendlyName = remember(currentTx.id, currentTx.clientId, currentTx.merchant, currentTx.upiId) {
-        currentTx.alias?.takeIf { it.isNotBlank() }
-            ?: com.app.data.sms.MerchantNormalizer.extractFriendlyName(currentTx.merchant, currentTx.upiId)
+        currentTx.getCleanDisplayName()
     }
 
     val predictedCategory = remember(currentTx.id, currentTx.category) {

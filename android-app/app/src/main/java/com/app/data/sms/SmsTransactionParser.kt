@@ -87,15 +87,27 @@ class SmsTransactionParser @Inject constructor(
 
     // ── Account number (last 4-6 digits) ────────────────────────────────
     private val accountPatterns = listOf(
-        Pattern.compile("""(?:a/c|acct|ac|account)\s*(?:no\.?\s*)?[-:\s]*[*Xx.]+\s*(\d{4,6})""", Pattern.CASE_INSENSITIVE),
-        Pattern.compile("""(?:a/c|acct|ac|account)\s*(?:no\.?\s*)?[-:\s]*X+(\d{4,6})""", Pattern.CASE_INSENSITIVE), // e.g. A/c X7933
-        Pattern.compile("""(?:a/c|acct|ac|account)\s*(?:no\.?\s*)?[-:\s]*x+(\d{4,6})""", Pattern.CASE_INSENSITIVE) // e.g. A/C xx1052
+        Pattern.compile("""(?:a/c|acct|ac|account|card|credit\s*card|debit\s*card)\s*(?:no\.?\s*)?(?:ending\s*(?:in|with)?|ending\s*:\s*)\s*(\d{4,6})""", Pattern.CASE_INSENSITIVE),
+        Pattern.compile("""(?:a/c|acct|ac|account|card|credit\s*card|debit\s*card)\s*(?:no\.?\s*)?[-:\s]*[*Xx.]+\s*(\d{4,6})""", Pattern.CASE_INSENSITIVE),
+        Pattern.compile("""(?:card\s*ending|ending\s*card)\s*(\d{4,6})""", Pattern.CASE_INSENSITIVE),
+        Pattern.compile("""a/c\s*\.{1,3}\s*(\d{4,6})""", Pattern.CASE_INSENSITIVE),
+        Pattern.compile("""(?:a/c|acct|ac|account)\s*(?:no\.?\s*)?[:\s]*(\d{9,18})""", Pattern.CASE_INSENSITIVE)
     )
 
     // ── Available balance ───────────────────────────────────────────────
-    private val balancePattern = Pattern.compile(
-        """(?:avl\s*bal|avlbl\s*amt|avlbl|available\s*balance|bal|avlbal|total\s*bal|balance)\s*(?:is|:|-)?\s*(?:rs\.?|inr|₹)?\s*[:\s]*([\d,]+\.?\d*)(?:cr|dr)?""",
-        Pattern.CASE_INSENSITIVE
+    private val balancePatterns = listOf(
+        Pattern.compile(
+            """(?:avl\s*bal|available\s*balance|clear\s*bal|clear\s*balance|eff(?:ective)?\s*bal|net\s*bal|acc(?:t)?\s*bal|new\s*bal|updated\s*bal|rem(?:aining)?\s*bal|total\s*bal|bal|avlbal|balance)\s*(?:in\s+(?:your\s+)?(?:a/c|account|card)\s*(?:[*Xx.\d]+)?\s*)?(?:is|:|-)?\s*(?:rs\.?|inr|₹)?\s*[:\s]*([\d,]+\.?\d*)(?:\s*(?:cr|dr))?""",
+            Pattern.CASE_INSENSITIVE
+        ),
+        Pattern.compile(
+            """(?:avl\s*lmt|available\s*limit|credit\s*limit|limit\s*avail(?:able)?)\s*(?:is|:|-)?\s*(?:rs\.?|inr|₹)?\s*[:\s]*([\d,]+\.?\d*)""",
+            Pattern.CASE_INSENSITIVE
+        ),
+        Pattern.compile(
+            """(?:rs\.?|inr|₹)\s*([\d,]+\.?\d*)\s*(?:is\s+)?(?:available|avl)\s*(?:bal|balance|limit)""",
+            Pattern.CASE_INSENSITIVE
+        )
     )
 
     // ── Date from SMS body (Multi-Bank Triangulation) ───────────────────
@@ -147,7 +159,8 @@ class SmsTransactionParser @Inject constructor(
 
                         // Phase 2: UPI Registry lookup for clean merchant identity
                         val regInfo = upiRegistry.lookup(templateResult.upiId ?: templateResult.merchant)
-                        val finalMerchant = regInfo?.merchantName ?: templateResult.merchant ?: extractMerchant(trimmed, templateResult.upiId)
+                        val candidateMerchant = templateResult.merchant?.let { MerchantNormalizer.extractFriendlyName(it, templateResult.upiId) }
+                        val finalMerchant = regInfo?.merchantName ?: candidateMerchant ?: extractMerchant(trimmed, templateResult.upiId)
                         val finalCategory = regInfo?.category ?: categoryClassifier.classify(
                             message = trimmed,
                             upiId = templateResult.upiId,
@@ -167,8 +180,8 @@ class SmsTransactionParser @Inject constructor(
                             merchant = finalMerchant,
                             upiId = templateResult.upiId,
                             referenceNumber = tRefNumber,
-                            accountLast4 = templateResult.accountLast4,
-                            availableBalance = templateResult.availableBalance,
+                            accountLast4 = templateResult.accountLast4 ?: extractAccountNumber(trimmed),
+                            availableBalance = templateResult.availableBalance ?: extractBalance(trimmed),
                             transactionDate = txDate,
                             smsDate = timestamp,
                             sender = sender,
@@ -387,26 +400,22 @@ class SmsTransactionParser @Inject constructor(
         for (pattern in accountPatterns) {
             val matcher = pattern.matcher(body)
             if (matcher.find()) {
-                return matcher.group(1)
+                val raw = matcher.group(1)
+                if (raw != null) {
+                    return if (raw.length > 4) raw.takeLast(4) else raw
+                }
             }
-        }
-        // Fallback for "A/c ...1052"
-        val matcher2 = Pattern.compile("""a/c\s*\.{3}(\d{4,6})""", Pattern.CASE_INSENSITIVE).matcher(body)
-        if (matcher2.find()) {
-            return matcher2.group(1)
         }
         return null
     }
 
     private fun extractBalance(body: String): Double? {
-        val matcher = balancePattern.matcher(body)
-        if (matcher.find()) {
-            return matcher.group(1)?.replace(",", "")?.toDoubleOrNull()
-        }
-        // Fallback for BOB format: "Total Bal:Rs.75CR."
-        val matcher2 = Pattern.compile("""Total\s*Bal[:\s]*(?:Rs\.?|INR|₹)?\s*([\d,]+\.?\d*)""", Pattern.CASE_INSENSITIVE).matcher(body)
-        if (matcher2.find()) {
-            return matcher2.group(1)?.replace(",", "")?.toDoubleOrNull()
+        for (pattern in balancePatterns) {
+            val matcher = pattern.matcher(body)
+            if (matcher.find()) {
+                val raw = matcher.group(1)?.replace(",", "")?.toDoubleOrNull()
+                if (raw != null && raw >= 0.0) return raw
+            }
         }
         return null
     }
@@ -814,7 +823,7 @@ class SmsTransactionParser @Inject constructor(
             "paytm", "phonepe", "google pay", "gpay", "cred", "amazon pay", "bhim", "mobikwik"
         )
 
-        private val KNOWN_MERCHANT_MAP = mapOf(
+        val KNOWN_MERCHANT_MAP = mapOf(
             "swiggy" to "Swiggy",
             "zomato" to "Zomato",
             "blinkit" to "Blinkit",
@@ -860,6 +869,45 @@ class SmsTransactionParser @Inject constructor(
             "1mg" to "Tata 1mg",
             "healthians" to "Healthians",
             "ixigo" to "ixigo",
+            "fastag" to "FASTag Toll",
+            "hpcl" to "HP Petrol Pump",
+            "bpcl" to "Bharat Petroleum",
+            "iocl" to "Indian Oil",
+            "shell" to "Shell Petrol",
+            "nayara" to "Nayara Energy",
+            "bescom" to "BESCOM Electricity",
+            "msedcl" to "MSEDCL Electricity",
+            "tatapower" to "Tata Power",
+            "adani" to "Adani Electricity",
+            "uppcl" to "UPPCL Electricity",
+            "cesc" to "CESC Electricity",
+            "bwssb" to "BWSSB Water",
+            "igl" to "Indraprastha Gas",
+            "mgl" to "Mahanagar Gas",
+            "zerodha" to "Zerodha",
+            "groww" to "Groww",
+            "upstox" to "Upstox",
+            "angelone" to "Angel One",
+            "angel one" to "Angel One",
+            "indmoney" to "INDmoney",
+            "cams" to "CAMS",
+            "kfintech" to "KFintech",
+            "mfcentral" to "MF Central",
+            "drlalpathlabs" to "Dr Lal PathLabs",
+            "lalpathlabs" to "Dr Lal PathLabs",
+            "metropolis" to "Metropolis Healthcare",
+            "allen" to "Allen Career Institute",
+            "aakash" to "Aakash Institute",
+            "physics wallah" to "Physics Wallah",
+            "pw" to "Physics Wallah",
+            "uniqlo" to "Uniqlo",
+            "trends" to "Trends Fashion",
+            "zudio" to "Zudio",
+            "snitch" to "Snitch",
+            "dmart" to "DMart",
+            "lic" to "LIC of India",
+            "policybazaar" to "Policybazaar",
+            "acko" to "Acko Insurance",
             "navi" to "Navi",
             "slice" to "Slice",
             "jupiter" to "Jupiter",

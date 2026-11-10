@@ -209,11 +209,16 @@ class BankSmsTemplateEngine @Inject constructor() {
         val cleaned = deMasked
             .replace(Regex("""^\s*[./\\-]+"""), "")
             .replace(Regex("""\s*[./\\-]+\s*$"""), "")
+            .replace(Regex("""\s+(?:ref|ref\s*no|txn|txn\s*id|id|rrn|on|at|via|using|by|date|avlbal|avl|bal|cr|dr|dated)\b.*$""", RegexOption.IGNORE_CASE), "")
             .trim()
         if (cleaned.isBlank() || cleaned.length < 2) return null
         // Don't return purely numeric merchants
         if (cleaned.matches(Regex("""^\d+$"""))) return null
-        return cleaned
+        val known = SmsTransactionParser.KNOWN_MERCHANT_MAP[cleaned.lowercase(Locale.US)]
+        if (known != null) return known
+        return cleaned.split(" ").filter { it.isNotBlank() }.joinToString(" ") { word ->
+            word.lowercase(Locale.US).replaceFirstChar { it.uppercase() }
+        }
     }
 
     private fun cleanUpiId(raw: String?): String? {
