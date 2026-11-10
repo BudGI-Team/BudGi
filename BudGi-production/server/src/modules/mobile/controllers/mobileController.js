@@ -114,16 +114,16 @@ const LATEST_APK_URL = `https://github.com/${GITHUB_REPO}/releases/latest/downlo
 const RELEASES_PAGE_URL = `https://github.com/${GITHUB_REPO}/releases`;
 
 const APP_UPDATE_INFO = {
-  latestVersionCode: 9,
-  latestVersionName: '1.3.0',
+  latestVersionCode: 10,
+  latestVersionName: '1.3.1',
   minSupportedVersionCode: 1,
   forceUpdate: false,
   maintenance: false,
   apkUrl: LATEST_APK_URL,
-  apkChecksumSha256: null,
+  apkChecksumSha256: '808c9b9da28e50430be95178126b823835b7f6fa9d9b9c1713ab62b52a479f82',
   releasesUrl: RELEASES_PAGE_URL,
-  releaseNotes: '• Remaining Account Balance: Real-time multi-account balance aggregation with exact paise precision and bank metadata\n• High-Tech Live Telemetry Sync: Emerald-cyan glowing radar capsule with active telemetry and smooth pull-to-refresh\n• Onboarding Profile Personalization: Bitmoji mascot selection and custom display name during setup\n• Sidebar Quick Profile Modal: Instant avatar switching with strict Save Changes confirmation\n• Hardened SMS Normalizer: Zero downreads for gateway prefixes (BIL*, RAZORPAY*, PAYTM*, PINELABS*) and word-boundary isolation\n• Anti-AI Polish: 100% human-crafted engineering with clean tokens and zero mock fallbacks',
-  publishedAt: new Date().toISOString(),
+  releaseNotes: '• Real-Time Available Balance: Hero Card displays exact available balance from latest bank SMS\n• Collaborative Spaces Stability: Resolved crash on space access with resilient offline fallback\n• Precision SMS Parsing: Multi-pattern extraction for masked/unmasked accounts and balances\n• Intelligent Merchant Intelligence: Zero telecom short-codes, clean contextual fallback naming\n• Word-Boundary Category Matching: Zero false positives across personal UPI VPAs\n• Bento Profile UI: Minimal, developer-grade screens adhering to Material 3 design tokens',
+  publishedAt: '2026-11-10T16:11:28Z',
 };
 
 const getAppConfig = asyncHandler(async (_req, res) => {
