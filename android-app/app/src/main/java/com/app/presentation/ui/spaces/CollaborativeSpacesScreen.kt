@@ -46,6 +46,7 @@ import kotlin.math.roundToInt
 fun CollaborativeSpacesScreen(
     windowSizeClass: WindowSizeClass,
     onNavigateToSpace: (String) -> Unit,
+    onBack: () -> Unit = {},
     viewModel: SpacesViewModel = hiltViewModel()
 ) {
     val spaces by viewModel.spaces.collectAsStateWithLifecycle()
@@ -56,8 +57,8 @@ fun CollaborativeSpacesScreen(
     var showJoinDialog by remember { mutableStateOf(false) }
 
     val pullToRefreshState = rememberPullToRefreshState()
-    if (pullToRefreshState.isRefreshing) {
-        LaunchedEffect(true) {
+    LaunchedEffect(pullToRefreshState.isRefreshing) {
+        if (pullToRefreshState.isRefreshing) {
             viewModel.refreshSpaces()
             pullToRefreshState.endRefresh()
         }
@@ -74,6 +75,18 @@ fun CollaborativeSpacesScreen(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground
                         )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onBack()
+                        }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
                     },
                     actions = {
                         IconButton(onClick = {
@@ -413,11 +426,12 @@ fun SpaceCard(space: SharedSpaceEntity, onClick: () -> Unit) {
     }
 
     // Use strictly dashboard tokens: primary and secondary
-    val (icon, typeLabel) = when (space.type.uppercase()) {
+    val spaceType = (space.type ?: "CUSTOM").trim().uppercase()
+    val (icon, typeLabel) = when (spaceType) {
         "COUPLE" -> Pair(Icons.Default.Favorite, "Couple")
         "ROOMMATES" -> Pair(Icons.Default.Home, "Roommates")
         "FAMILY" -> Pair(Icons.Default.FamilyRestroom, "Family")
-        else -> Pair(Icons.Default.Groups, space.type.lowercase().replaceFirstChar { it.uppercase() })
+        else -> Pair(Icons.Default.Groups, if (space.type.isNullOrBlank()) "Custom" else space.type.lowercase().replaceFirstChar { it.uppercase() })
     }
 
     val isDark = LocalIsDarkTheme.current

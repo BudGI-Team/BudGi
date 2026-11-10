@@ -75,6 +75,7 @@
 -keep class com.app.data.remote.dto.** { *; }
 -keep interface com.app.data.remote.api.** { *; }
 -keep class com.app.data.remote.api.** { *; }
+-keepclassmembers class com.app.data.remote.api.** { *; }
 -keepclassmembers interface com.app.data.remote.api.** {
     <methods>;
 }

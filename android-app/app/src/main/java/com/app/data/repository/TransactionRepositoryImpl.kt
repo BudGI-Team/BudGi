@@ -1173,6 +1173,8 @@ class TransactionRepositoryImpl @Inject constructor(
         isRecurring = isRecurring,
         isAnomaly = isAnomaly,
         splitDetails = splitDetails.map { it.toDto() },
+        method = method.ifBlank { null },
+        timestamp = timestamp,
         upiId = upiId,
         referenceNumber = referenceNumber,
         accountLast4 = accountLast4,
@@ -1202,6 +1204,7 @@ class TransactionRepositoryImpl @Inject constructor(
             val splits: List<SplitDetail> = gson.fromJson(it, splitType)
             splits.map { s -> SplitDetailDto(s.personName, s.amount, s.settled) }
         },
+        method = method.ifBlank { null },
         timestamp = timestamp,
         upiId = upiId,
         referenceNumber = referenceNumber,
@@ -1231,6 +1234,7 @@ class TransactionRepositoryImpl @Inject constructor(
         splitDetailsJson = splitDetails?.let { gson.toJson(it.map { s -> SplitDetail(s.personName, s.amount, s.settled) }) },
         updatedAt = updatedAt,
         createdAt = createdAt,
+        method = method ?: "Bank Transfer",
         upiId = upiId,
         referenceNumber = referenceNumber,
         accountLast4 = accountLast4,
@@ -1263,6 +1267,7 @@ class TransactionRepositoryImpl @Inject constructor(
         isAnomaly = isAnomaly,
         aiCategory = aiCategory,
         splitDetails = splitDetails?.map { it.toDomain() } ?: emptyList(),
+        method = method ?: "Bank Transfer",
         sender = sender ?: "",
         timestamp = when {
             timestamp != null && timestamp > 0 -> timestamp

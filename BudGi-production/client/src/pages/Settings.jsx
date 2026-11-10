@@ -19,22 +19,12 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useUpdateProfile } from '../hooks/useAuth';
 import { transactionsApi, authApi } from '../lib/api';
+import { BITMOJIS } from '../lib/constants';
 import useStore from '../store/useStore';
 import toast from 'react-hot-toast';
 import './Settings.css';
 
 const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
-
-const BITMOJIS = [
-  'https://api.dicebear.com/7.x/lorelei/svg?seed=Felix',
-  'https://api.dicebear.com/7.x/lorelei/svg?seed=Aneka',
-  'https://api.dicebear.com/7.x/lorelei/svg?seed=Julian',
-  'https://api.dicebear.com/7.x/lorelei/svg?seed=Amaya',
-  'https://api.dicebear.com/7.x/lorelei/svg?seed=Robert',
-  'https://api.dicebear.com/7.x/lorelei/svg?seed=Mimi',
-  'https://api.dicebear.com/7.x/lorelei/svg?seed=Casper',
-  'https://api.dicebear.com/7.x/lorelei/svg?seed=Jocelyn',
-];
 
 export default function Settings() {
   const { user, logout } = useStore();
@@ -815,8 +805,7 @@ export default function Settings() {
                         onClick={() => {
                           setForm((p) => ({ ...p, profileImage: url }));
                           setShowAvatarPicker(false);
-                          // Auto-save when selecting an avatar
-                          updateProfile.mutate({ profileImage: url });
+                          toast.success('Avatar selected. Click "Save Changes" below to apply.');
                         }}
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
@@ -838,7 +827,7 @@ export default function Settings() {
                       onClick={() => {
                         setForm((p) => ({ ...p, profileImage: '' }));
                         setShowAvatarPicker(false);
-                        updateProfile.mutate({ profileImage: '' });
+                        toast.success('Photo removed. Click "Save Changes" below to apply.');
                       }}
                     >
                       Remove current photo

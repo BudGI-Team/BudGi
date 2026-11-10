@@ -19,6 +19,7 @@ const transactionSchema = new mongoose.Schema(
     clientId: { type: String, index: true, sparse: true }, // For offline sync tracking
 
     // SMS-specific fields
+    method: { type: String, default: 'Bank Transfer', trim: true },
     upiId: { type: String, default: null, trim: true },
     referenceNumber: { type: String, default: null, trim: true },
     accountLast4: { type: String, default: null, trim: true },

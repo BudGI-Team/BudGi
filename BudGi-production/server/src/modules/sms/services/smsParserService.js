@@ -136,9 +136,16 @@ const NOISE_WORDS = new Set([
   'avlbal',
 ]);
 
+const GATEWAY_PREFIX_REGEX = /^(?:bil|billdesk|rzp|razorpay|payu|ccavenue|cashfree|pinelabs|airpay|paytm|phonepe|gpay|upi|amazonpay|simpl|cred)[*_\-/:\s]+/i;
+
+function stripGatewayPrefix(raw) {
+  if (!raw) return '';
+  return raw.replace(GATEWAY_PREFIX_REGEX, '').trim();
+}
+
 const MERCHANT_PATTERNS = [
   // "Cr. to merchant@bank"
-  /(?:cr\.?\s+to|paid\s+to|sent\s+to|transferred\s+to|to)\s+([A-Za-z0-9@._\-]+(?:\s+[A-Za-z0-9@._\-]+)*)(?:\.|\s+ref|\s+on|\n|$)/i,
+  /(?:cr\.?\s+to|paid\s+to|sent\s+to|transferred\s+to|to)\s+([A-Za-z0-9@._\-*&'/]+(?:\s+[A-Za-z0-9@._\-*&'/]+)*)(?:\.|\s+ref|\s+on|\n|$)/i,
   // "transfer from Divyanshu Dixit Ref No"
   /(?:from)\s+([A-Z][A-Za-z0-9\s&'.\-]{2,30}?)(?:\s+ref|\s*\.|\s*$)/i,
   // "AT POS TID-3074036A/P"
@@ -155,6 +162,7 @@ function extractMerchant(text, upiId) {
     const match = text.match(pattern);
     if (match) {
       let merchant = match[1].trim();
+      merchant = stripGatewayPrefix(merchant);
       if (merchant.length > 1 && !NOISE_WORDS.has(merchant.toLowerCase()) && !/^\d+$/.test(merchant)) {
         merchant = merchant.replace(/\s+(ref|on|via|txn|at|date).*$/i, '');
         return merchant.charAt(0).toUpperCase() + merchant.slice(1);

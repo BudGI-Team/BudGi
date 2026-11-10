@@ -50,6 +50,7 @@ fun ProfileScreen(
     windowSizeClass: WindowSizeClass,
     onNavigate: (String) -> Unit,
     onLogout: () -> Unit,
+    onBack: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -114,14 +115,33 @@ fun ProfileScreen(
                 contentPadding = PaddingValues(top = 16.dp, bottom = Dimens.bottomDockHeight + 24.dp, start = 20.dp, end = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                // Top Title: "Profile"
+                // Top Bar: Back Button & Title "Profile"
                 item {
-                    Text(
-                        text = "Profile",
-                        style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        IconButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onBack()
+                            },
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Icon(
+                                imageVector = androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                        Text(
+                            text = "Profile",
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
                 }
 
                 // Centered Profile Avatar & Identity

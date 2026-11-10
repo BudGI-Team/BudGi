@@ -14,7 +14,6 @@ import {
   Share2,
   Lock,
   Layers,
-  Sparkles,
 } from '../lib/icons';
 import { spacesApi } from '../lib/api';
 import useStore from '../store/useStore';

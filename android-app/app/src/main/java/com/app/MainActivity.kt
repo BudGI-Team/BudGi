@@ -242,11 +242,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        // Do NOT de-authenticate on onPause!
+        // onPause is triggered by system dialogs, photo pickers, permission prompts, and BiometricPrompt itself.
+        // Locking here causes the app to send the user to the biometric screen when selecting photos or interacting with system intents.
         if (tokenManager.isBiometricEnabled) {
             window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-            // Immediately lock when leaving or swiping to recents overview
-            isAuthenticated.value = false
-            showPrompt.value = true
         }
         // Cancel active prompt on pause to avoid window transition deadlocks
         try {
@@ -258,7 +258,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        if (tokenManager.isBiometricEnabled) {
+        // Lock on onStop (actual backgrounding to home or recent apps overview)
+        if (tokenManager.isBiometricEnabled && !isChangingConfigurations) {
             isAuthenticated.value = false
             showPrompt.value = true
             window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)

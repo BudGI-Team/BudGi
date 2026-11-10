@@ -123,7 +123,7 @@ app.get('/', (_req, res) => {
   res.json({
     success: true,
     message: 'BudGi API engine is running',
-    version: '3.0.0',
+    version: '3.1.0',
     status: 'healthy',
   });
 });

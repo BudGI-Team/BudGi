@@ -908,7 +908,7 @@ fun TransactionItem(
                     ) {
                         if (categorySource.equals("UserLearned", ignoreCase = true)) {
                             Icon(
-                                imageVector = Icons.Default.AutoAwesome,
+                                imageVector = Icons.Default.Check,
                                 contentDescription = "Learned Rule",
                                 tint = catColor,
                                 modifier = Modifier.size(9.dp)
@@ -925,15 +925,22 @@ fun TransactionItem(
                         )
                     }
 
-                    // Bank Account Last 4 Digits
-                    if (!accountLast4.isNullOrBlank()) {
+                    // Payment Method & Bank Account / Card Micro-Badge
+                    val accountBadgeText = when {
+                        !accountLast4.isNullOrBlank() && method.contains("card", ignoreCase = true) -> "💳 ••$accountLast4"
+                        !accountLast4.isNullOrBlank() && method.contains("upi", ignoreCase = true) -> "⚡ ••$accountLast4"
+                        !accountLast4.isNullOrBlank() -> "🏦 ••$accountLast4"
+                        method.isNotBlank() && !method.equals("manual", ignoreCase = true) && !method.equals("Bank Transfer", ignoreCase = true) -> method
+                        else -> null
+                    }
+                    if (accountBadgeText != null) {
                         Surface(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
                             shape = CircleShape
                         ) {
                             Text(
-                                text = "••$accountLast4",
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                                text = accountBadgeText,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.5.sp, fontWeight = FontWeight.Medium),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,

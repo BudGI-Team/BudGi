@@ -114,15 +114,15 @@ const LATEST_APK_URL = `https://github.com/${GITHUB_REPO}/releases/latest/downlo
 const RELEASES_PAGE_URL = `https://github.com/${GITHUB_REPO}/releases`;
 
 const APP_UPDATE_INFO = {
-  latestVersionCode: 8,
-  latestVersionName: '1.2.2',
+  latestVersionCode: 9,
+  latestVersionName: '1.3.0',
   minSupportedVersionCode: 1,
   forceUpdate: false,
   maintenance: false,
   apkUrl: LATEST_APK_URL,
   apkChecksumSha256: null,
   releasesUrl: RELEASES_PAGE_URL,
-  releaseNotes: '• Sleek Compact Cards: Clean 62dp cards with zero vertical stretching or text wrapping\n• Redesigned Micro-Spend Catch-Up: Obsidian-themed 1-click expense triage deck\n• Precision Merchant Parsing: Fixes Paytm & Google Pay facilitator naming\n• Custom Categories & Nicknames: Editable recipient name and instant category rule creator\n• Persistent Profile Avatar: Reliable offline-first profile avatar caching immune to server sleep\n• Multi-Account Net Balance: Aggregated liquid balance calculated across all linked bank accounts\n• Collaborative Spaces: Real-time collaborative budgeting hub with WebSocket sync',
+  releaseNotes: '• Remaining Account Balance: Real-time multi-account balance aggregation with exact paise precision and bank metadata\n• High-Tech Live Telemetry Sync: Emerald-cyan glowing radar capsule with active telemetry and smooth pull-to-refresh\n• Onboarding Profile Personalization: Bitmoji mascot selection and custom display name during setup\n• Sidebar Quick Profile Modal: Instant avatar switching with strict Save Changes confirmation\n• Hardened SMS Normalizer: Zero downreads for gateway prefixes (BIL*, RAZORPAY*, PAYTM*, PINELABS*) and word-boundary isolation\n• Anti-AI Polish: 100% human-crafted engineering with clean tokens and zero mock fallbacks',
   publishedAt: new Date().toISOString(),
 };
 

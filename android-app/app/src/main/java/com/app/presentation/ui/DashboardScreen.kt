@@ -129,6 +129,7 @@ fun DashboardScreen(
     val scrollState = rememberScrollState()
     val coroutineScope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
+    val pullToRefreshState = rememberPullToRefreshState()
     
     val context = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(Unit) {
@@ -137,6 +138,36 @@ fun DashboardScreen(
         if (dataUri == "budgi://sync") {
             onReadSmsClicked()
             activity.intent?.data = null
+        }
+    }
+
+    LaunchedEffect(pullToRefreshState.isRefreshing) {
+        if (pullToRefreshState.isRefreshing) {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            if (smsPermissionGranted) {
+                onReadSmsClicked()
+            } else {
+                onRequestPermission()
+                pullToRefreshState.endRefresh()
+            }
+        }
+    }
+
+    LaunchedEffect(state.syncing, state.loading, state.error) {
+        if (!state.syncing && !state.loading && pullToRefreshState.isRefreshing) {
+            pullToRefreshState.endRefresh()
+        }
+        if (state.error != null && pullToRefreshState.isRefreshing) {
+            pullToRefreshState.endRefresh()
+        }
+    }
+
+    // Auto-sync seamlessly on first entry after onboarding when SMS permission is granted
+    var hasAttemptedInitialSync by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(smsPermissionGranted) {
+        if (smsPermissionGranted && !hasAttemptedInitialSync && !state.syncing && !state.loading) {
+            hasAttemptedInitialSync = true
+            onReadSmsClicked()
         }
     }
     
@@ -236,6 +267,24 @@ fun DashboardScreen(
         ),
         label = "sync_spin"
     )
+    val radarPulse by infiniteTransition.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 1.35f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "radar_pulse"
+    )
+    val radarAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 0.15f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "radar_alpha"
+    )
     val shouldSpin = state.syncing && isManualSync
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -250,6 +299,7 @@ fun DashboardScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .nestedScroll(pullToRefreshState.nestedScrollConnection)
         ) {
             val maxWidth = maxWidth
             val contentPadding = if (maxWidth > 600.dp) Dimens.paddingExtraLarge else Dimens.paddingMedium
@@ -473,18 +523,18 @@ fun DashboardScreen(
                 Spacer(modifier = Modifier.height(134.dp))
             }
 
-            // ── Top Loading Sync Animation Capsule ──
+            // ── Top Loading Sync Animation Capsule (Promising, High-Tech, Reassuring) ──
             val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
             AnimatedVisibility(
-                visible = state.syncing || state.loading,
+                visible = state.syncing || state.loading || pullToRefreshState.isRefreshing,
                 enter = slideInVertically(
-                    initialOffsetY = { -it },
-                    animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.82f, stiffness = 420f)
+                    initialOffsetY = { -it * 2 },
+                    animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.76f, stiffness = 380f)
                 ) + fadeIn(tween(180)),
                 exit = slideOutVertically(
-                    targetOffsetY = { -it },
-                    animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 400f)
-                ) + fadeOut(tween(200)),
+                    targetOffsetY = { -it * 2 },
+                    animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.82f, stiffness = 400f)
+                ) + fadeOut(tween(220)),
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .statusBarsPadding()
@@ -493,37 +543,94 @@ fun DashboardScreen(
                 Surface(
                     modifier = Modifier
                         .shadow(
-                            elevation = 16.dp,
+                            elevation = 18.dp,
                             shape = RoundedCornerShape(24.dp),
-                            ambientColor = Color.Black.copy(alpha = 0.40f),
-                            spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+                            ambientColor = Color.Black.copy(alpha = 0.50f),
+                            spotColor = Color(0xFF10B981).copy(alpha = 0.45f)
                         ),
                     shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.surface,
+                    color = if (isDark) Color(0xFF0F1523) else Color.White,
                     border = androidx.compose.foundation.BorderStroke(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        width = 1.2.dp,
+                        brush = Brush.horizontalGradient(
+                            listOf(
+                                Color(0xFF10B981).copy(alpha = 0.85f),
+                                Color(0xFF38BDF8).copy(alpha = 0.85f),
+                                Color(0xFF10B981).copy(alpha = 0.85f)
+                            )
+                        )
                     )
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 9.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = if (state.syncing) "Syncing BudGi transactions..." else "Refreshing data...",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                        // Live Radar Beacon
+                        Box(
+                            modifier = Modifier.size(18.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .scale(radarPulse)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF10B981).copy(alpha = radarAlpha))
+                            )
+                            Icon(
+                                imageVector = Icons.Default.Sync,
+                                contentDescription = "Syncing",
+                                tint = Color(0xFF10B981),
+                                modifier = Modifier
+                                    .size(15.dp)
+                                    .rotate(syncAngle)
+                            )
+                        }
+
+                        Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                            Text(
+                                text = if (state.syncing) "Synchronizing Bank Ledgers..." else "Refreshing Ledger Telemetry...",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontSize = 12.5.sp,
+                                    letterSpacing = 0.2.sp
+                                ),
+                                fontWeight = FontWeight.Bold,
+                                color = if (isDark) Color.White else Color(0xFF0F172A)
+                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF10B981))
+                                )
+                                Text(
+                                    text = "AUTONOMOUS LEDGER ENGINE • LIVE SYNC",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 9.5.sp,
+                                        letterSpacing = 0.8.sp,
+                                        fontWeight = FontWeight.Bold
+                                    ),
+                                    color = Color(0xFF10B981)
+                                )
+                            }
+                        }
                     }
                 }
             }
+
+            PullToRefreshContainer(
+                state = pullToRefreshState,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding(),
+                containerColor = if (isDark) Color(0xFF111622) else Color.White,
+                contentColor = Color(0xFF10B981)
+            )
 
             // ── Floating Quick Action Pill placed just above bottom navbar with clean distance ──
             if (!isExpanded) {
@@ -663,7 +770,7 @@ private fun RecentActivitySection(state: DashboardUiState, onSeeAllTransactions:
         if (state.loading && state.transactions.isEmpty()) {
             SkeletonList(count = 3)
         } else if (state.transactions.isEmpty()) {
-            EmptyState(message = "No transactions found yet. Sync your SMS to see magic!")
+            EmptyState(message = "No transactions recorded yet. Synchronize your SMS to populate your verified financial ledger.")
         } else {
             val displayList = remember(state.transactions) { state.transactions.take(5) }
             Column(
@@ -674,7 +781,7 @@ private fun RecentActivitySection(state: DashboardUiState, onSeeAllTransactions:
                     TransactionItem(
                         merchant = transaction.alias?.takeIf { it.isNotBlank() } ?: transaction.merchant ?: transaction.sender,
                         category = transaction.category,
-                        amount = "%,.0f".format(transaction.amount),
+                        amount = if (transaction.amount % 1.0 == 0.0) "%,.0f".format(transaction.amount) else "%,.2f".format(transaction.amount),
                         date = DateUtils.formatDisplayTime(transaction.date, transaction.timestamp),
                         type = transaction.type,
                         splitDetails = transaction.splitDetails,
@@ -1622,13 +1729,13 @@ fun HomeScreenTotalBalanceCard(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     Text(
-                                        text = "TOTAL BALANCE",
+                                        text = "REMAINING ACCOUNT BALANCE",
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontSize = 11.sp,
                                             letterSpacing = 1.4.sp,
                                             fontWeight = FontWeight.SemiBold
                                         ),
-                                        color = Color.White.copy(alpha = 0.65f)
+                                        color = Color.White.copy(alpha = 0.75f)
                                     )
                                     IconButton(
                                         onClick = {
@@ -1746,7 +1853,7 @@ fun HomeScreenTotalBalanceCard(
 
                         // Authentic PAN Number (Masked 16-Digit Silk-Screen)
                         Text(
-                            text = "••••  ••••  ••••  ${realAccountLast4 ?: "4820"}",
+                            text = if (realAccountLast4 != null) "••••  ••••  ••••  $realAccountLast4" else "••••  ••••  ••••  ••••",
                             style = MaterialTheme.typography.bodySmall.copy(
                                 fontSize = 12.5.sp,
                                 letterSpacing = 2.4.sp,
@@ -2885,7 +2992,7 @@ fun ProfileSidebarDrawer(
 
             // ── 2. User Identity Card (Clean, Minimal & Integrated) ──
             Surface(
-                onClick = { onNavigate("profile_account") },
+                onClick = { onNavigate("profile") },
                 shape = RoundedCornerShape(18.dp),
                 color = cardBg,
                 border = androidx.compose.foundation.BorderStroke(1.dp, cardBorder),
@@ -3011,7 +3118,7 @@ fun ProfileSidebarDrawer(
                         icon = Icons.Default.Group,
                         title = "Collaborative Spaces",
                         subtitle = "Shared expenses & group budgets",
-                        onClick = { onNavigate("spaces_graph") }
+                        onClick = { onNavigate("spaces") }
                     )
                     HorizontalDivider(
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f),

@@ -375,7 +375,7 @@ export default function Dashboard() {
           index={1}
         />
         <StatCard
-          title="Balance"
+          title="Remaining Balance"
           rawValue={kpiBalance}
           formatter={(v) => fmt(v, currency)}
           trend={kpiBalanceTrend}

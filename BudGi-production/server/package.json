@@ -1,6 +1,6 @@
 {
   "name": "budgi-server",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Budgi — AI-Powered Budgeting Platform Backend",
   "main": "src/server.js",
   "scripts": {

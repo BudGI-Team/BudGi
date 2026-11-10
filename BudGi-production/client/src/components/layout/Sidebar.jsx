@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -6,7 +7,7 @@ import {
   LayoutDashboard,
   ArrowLeftRight,
   BarChart3,
-  Bot,
+  Terminal,
   Settings,
   LogOut,
   Wallet,
@@ -20,9 +21,13 @@ import {
   FileText,
   Flame,
   Users,
+  Check,
 } from '../../lib/icons';
 import { useUnreadAlerts } from '../../hooks/useAlerts';
+import { useUpdateProfile } from '../../hooks/useAuth';
+import { BITMOJIS } from '../../lib/constants';
 import useStore from '../../store/useStore';
+import toast from 'react-hot-toast';
 import BrandLogo from '../ui/BrandLogo';
 import './Sidebar.css';
 
@@ -35,12 +40,44 @@ const NAV_MAIN = [
   { to: '/app/spaces', icon: Users, label: 'Spaces', shortcut: 'Alt+S' },
 ];
 
-const NAV_TOOLS = [{ to: '/app/ai', icon: Bot, label: 'Copilot', shortcut: 'Alt+C' }];
+const NAV_TOOLS = [{ to: '/app/ai', icon: Terminal, label: 'Terminal', shortcut: 'Alt+C' }];
 
 export default function Sidebar() {
-  const { user, logout, sidebarOpen, setSidebarOpen } = useStore();
+  const { user, logout, sidebarOpen, setSidebarOpen, updateUser } = useStore();
   const navigate = useNavigate();
+  const updateProfile = useUpdateProfile();
   const [showHelp, setShowHelp] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [stagedAvatar, setStagedAvatar] = useState('');
+  const [stagedName, setStagedName] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const openProfileModal = () => {
+    setStagedAvatar(user?.profileImage || '');
+    setStagedName(user?.name || '');
+    setShowProfileModal(true);
+  };
+
+  const handleSaveProfile = async () => {
+    setIsSaving(true);
+    try {
+      await updateProfile.mutateAsync({
+        profileImage: stagedAvatar,
+        name: stagedName.trim() || user?.name || 'BudGi Member',
+      });
+      updateUser({
+        ...user,
+        profileImage: stagedAvatar,
+        name: stagedName.trim() || user?.name || 'BudGi Member',
+      });
+      toast.success('Profile updated successfully');
+      setShowProfileModal(false);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to update profile');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -241,7 +278,11 @@ export default function Sidebar() {
         </div>
 
         {/* User Card */}
-        <div className="sidebar-user-section">
+        <div
+          className="sidebar-user-section"
+          onClick={openProfileModal}
+          title="Click to customize profile avatar and name"
+        >
           {user?.profileImage ? (
             <img src={user.profileImage} alt={user.name} className="sidebar-user-avatar-img" />
           ) : (
@@ -268,7 +309,14 @@ export default function Sidebar() {
             )}
           </AnimatePresence>
           {sidebarOpen && (
-            <button className="sidebar-logout-minimal" onClick={handleLogout} title="Sign out">
+            <button
+              className="sidebar-logout-minimal"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleLogout();
+              }}
+              title="Sign out"
+            >
               <LogOut size={14} />
             </button>
           )}
@@ -386,6 +434,109 @@ export default function Sidebar() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Quick Profile Customization Modal */}
+      {createPortal(
+        <AnimatePresence>
+          {showProfileModal && (
+            <div
+              className="sidebar-profile-modal-overlay"
+              onClick={() => !isSaving && setShowProfileModal(false)}
+            >
+              <motion.div
+                className="sidebar-profile-modal-content"
+                initial={{ opacity: 0, scale: 0.94, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.94, y: 20 }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="sidebar-profile-modal-header">
+                  <h3 className="sidebar-profile-modal-title">Customize Profile</h3>
+                  <button
+                    className="help-modal-close"
+                    onClick={() => !isSaving && setShowProfileModal(false)}
+                    disabled={isSaving}
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <div className="sidebar-profile-preview">
+                  {stagedAvatar ? (
+                    <img
+                      src={stagedAvatar}
+                      alt="Avatar Preview"
+                      className="sidebar-profile-avatar-preview"
+                    />
+                  ) : (
+                    <div className="sidebar-profile-avatar-placeholder">
+                      {stagedName ? stagedName.slice(0, 2).toUpperCase() : initials}
+                    </div>
+                  )}
+                  <input
+                    type="text"
+                    className="sidebar-profile-name-input"
+                    placeholder="Your Display Name"
+                    value={stagedName}
+                    onChange={(e) => setStagedName(e.target.value)}
+                    maxLength={32}
+                  />
+                </div>
+
+                <div className="sidebar-profile-grid">
+                  {BITMOJIS.map((url, i) => (
+                    <motion.button
+                      key={i}
+                      type="button"
+                      className={`sidebar-profile-grid-btn ${stagedAvatar === url ? 'selected' : ''}`}
+                      onClick={() => setStagedAvatar(url)}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <img src={url} alt={`Bitmoji ${i + 1}`} />
+                      {stagedAvatar === url && (
+                        <div className="sidebar-profile-check-badge">
+                          <Check size={10} />
+                        </div>
+                      )}
+                    </motion.button>
+                  ))}
+                </div>
+
+                <div className="sidebar-profile-actions">
+                  <button
+                    type="button"
+                    className="sidebar-profile-btn-remove"
+                    onClick={() => setStagedAvatar('')}
+                  >
+                    Remove photo
+                  </button>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      className="sidebar-profile-btn-secondary"
+                      onClick={() => setShowProfileModal(false)}
+                      disabled={isSaving}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="sidebar-profile-btn-primary"
+                      onClick={handleSaveProfile}
+                      disabled={isSaving}
+                    >
+                      {isSaving ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </>
   );
 }

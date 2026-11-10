@@ -39,7 +39,7 @@ import {
   Play,
   Pause,
   Maximize2,
-  Sparkles,
+  Terminal,
   Wifi,
   RotateCcw,
 } from '../lib/icons';
@@ -501,7 +501,7 @@ export default function Landing() {
                 <div className="mobile-nav-divider" />
                 <div className="mobile-nav-badge">
                   <Zap size={14} className="text-accent" />
-                  <span>v3.0.0 Stable Build</span>
+                  <span>v3.1.0 Stable Build</span>
                 </div>
                 <div className="mobile-nav-actions">
                   {isAuthenticated ? (
@@ -790,7 +790,7 @@ export default function Landing() {
                   >
                     <PlayStoreSVG />
                     <div className="app-btn-text">
-                      <span className="app-btn-sub">Native APK · v1.2.2</span>
+                      <span className="app-btn-sub">Native APK · v1.3.0</span>
                       <span className="app-btn-main">Download Android Native</span>
                     </div>
                   </MagneticBtn>
@@ -1298,7 +1298,7 @@ export default function Landing() {
                 Crafted with <Heart size={12} fill="var(--red)" stroke="none" /> by Team BudGi
               </div>
               <div className="footer-bottom-right">
-                <span className="footer-version">v3.0.0 Stable</span>
+                <span className="footer-version">v3.1.0 Stable</span>
                 <button className="footer-theme-btn" onClick={toggleTheme} aria-label="Toggle theme">
                   {isDark ? <Sun size={14} /> : <Moon size={14} />} {isDark ? 'Light mode' : 'Dark mode'}
                 </button>
@@ -2654,7 +2654,7 @@ function HeroDashboard({ onOpenDownload: _onOpenDownload }) {
                                     setActionStaged(false);
                                   }}
                                 >
-                                  <Sparkles size={11} />
+                                  <Terminal size={11} />
                                   <span>{idx === 0 ? 'Buy ₹12k monitor?' : idx === 1 ? 'Where spent this week?' : 'Save ₹5k for Diwali?'}</span>
                                 </button>
                               ))}

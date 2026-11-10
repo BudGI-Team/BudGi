@@ -13,13 +13,21 @@ import {
   Search,
   Plane,
   Flame,
+  User,
 } from '../lib/icons';
 import BrandLogo from '../components/ui/BrandLogo';
 import { useUpdateProfile } from '../hooks/useAuth';
+import { BITMOJIS } from '../lib/constants';
 import useStore from '../store/useStore';
 import './Onboarding.css';
 
 const STEPS = [
+  {
+    id: 'profile',
+    title: 'Personalize Your Profile',
+    subtitle: 'Choose your avatar mascot and confirm your name to get started.',
+    icon: User,
+  },
   {
     id: 'income',
     title: "What's your monthly income?",
@@ -58,11 +66,13 @@ const INCOME_RANGES = [
 ];
 
 export default function Onboarding() {
+  const { user, updateUser } = useStore();
   const [step, setStep] = useState(0);
+  const [selectedAvatar, setSelectedAvatar] = useState(user?.profileImage || BITMOJIS[0]);
+  const [displayName, setDisplayName] = useState(user?.name || '');
   const [income, setIncome] = useState('');
   const [goal, setGoal] = useState('');
   const navigate = useNavigate();
-  const { user, updateUser } = useStore();
   const updateProfile = useUpdateProfile();
 
   // Parse income range string to a numeric value for the backend
@@ -76,18 +86,22 @@ export default function Onboarding() {
   };
 
   const advance = () => {
-    if (step === 0 && !income) return;
-    if (step === 1 && !goal) return;
+    if (step === 0 && !selectedAvatar) return;
+    if (step === 1 && !income) return;
+    if (step === 2 && !goal) return;
     if (step === STEPS.length - 1) {
-      // Save income + goal to backend via API
+      // Save profile + income + goal to backend via API
       const numericIncome = parseIncomeToNumber(income);
-      updateProfile.mutate({
+      const profileData = {
         monthlyIncome: numericIncome,
         financialGoal: goal,
+        profileImage: selectedAvatar,
+        name: displayName.trim() || user?.name || 'BudGi Member',
         onboarded: true,
-      });
+      };
+      updateProfile.mutate(profileData);
       // Save locally for immediate UI update
-      updateUser({ ...user, onboarded: true, financialGoal: goal, monthlyIncome: numericIncome });
+      updateUser({ ...user, ...profileData });
       localStorage.setItem('budgi_onboarded', 'true');
       navigate('/app/dashboard');
       return;
@@ -95,7 +109,11 @@ export default function Onboarding() {
     setStep((s) => s + 1);
   };
 
-  const canAdvance = (step === 0 && income) || (step === 1 && goal) || step === STEPS.length - 1;
+  const canAdvance =
+    (step === 0 && !!selectedAvatar) ||
+    (step === 1 && !!income) ||
+    (step === 2 && !!goal) ||
+    step === STEPS.length - 1;
 
   const StepIcon = STEPS[step].icon;
 
@@ -153,8 +171,49 @@ export default function Onboarding() {
             <h1 className="onboarding-title">{STEPS[step].title}</h1>
             <p className="onboarding-sub">{STEPS[step].subtitle}</p>
 
-            {/* Step 0 — Income */}
+            {/* Step 0 — Profile Avatar & Name */}
             {step === 0 && (
+              <div style={{ width: '100%' }}>
+                <div className="onboarding-avatar-preview-wrap">
+                  <img
+                    src={selectedAvatar}
+                    alt="Selected Mascot"
+                    className="onboarding-avatar-current"
+                  />
+                  <input
+                    type="text"
+                    className="onboarding-name-input"
+                    placeholder="Enter your name"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    maxLength={32}
+                  />
+                </div>
+
+                <div className="onboarding-avatar-grid">
+                  {BITMOJIS.map((url, i) => (
+                    <motion.button
+                      key={i}
+                      type="button"
+                      className={`onboarding-avatar-btn ${selectedAvatar === url ? 'selected' : ''}`}
+                      onClick={() => setSelectedAvatar(url)}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <img src={url} alt={`Bitmoji ${i + 1}`} />
+                      {selectedAvatar === url && (
+                        <div className="onboarding-avatar-badge">
+                          <Check size={11} />
+                        </div>
+                      )}
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Step 1 — Income */}
+            {step === 1 && (
               <div className="onboarding-options">
                 {INCOME_RANGES.map((range) => (
                   <motion.button
@@ -174,8 +233,8 @@ export default function Onboarding() {
               </div>
             )}
 
-            {/* Step 1 — Goal */}
-            {step === 1 && (
+            {/* Step 2 — Goal */}
+            {step === 2 && (
               <div className="onboarding-goals-grid">
                 {GOAL_OPTIONS.map((g) => (
                   <motion.button
@@ -198,8 +257,8 @@ export default function Onboarding() {
               </div>
             )}
 
-            {/* Step 2 — Ready & Treasury Passport Grand Finale */}
-            {step === 2 && (
+            {/* Step 3 — Ready & Treasury Passport Grand Finale */}
+            {step === 3 && (
               <div
                 className="onboarding-passport-finale"
                 style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', width: '100%' }}
@@ -282,26 +341,41 @@ export default function Onboarding() {
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px' }}>
-                    <div
-                      style={{
-                        width: '56px',
-                        height: '56px',
-                        borderRadius: '50%',
-                        background: 'var(--accent)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '20px',
-                        fontWeight: 800,
-                        color: 'var(--bg-base)',
-                        border: '2px solid var(--border)',
-                      }}
-                    >
-                      {user?.name ? user.name.slice(0, 2).toUpperCase() : 'BG'}
-                    </div>
+                    {selectedAvatar ? (
+                      <img
+                        src={selectedAvatar}
+                        alt={displayName || user?.name || 'BudGi Member'}
+                        style={{
+                          width: '56px',
+                          height: '56px',
+                          borderRadius: '50%',
+                          objectFit: 'cover',
+                          border: '2px solid var(--accent)',
+                          background: 'var(--bg-elevated)',
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: '56px',
+                          height: '56px',
+                          borderRadius: '50%',
+                          background: 'var(--accent)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '20px',
+                          fontWeight: 800,
+                          color: 'var(--bg-base)',
+                          border: '2px solid var(--border)',
+                        }}
+                      >
+                        {(displayName || user?.name) ? (displayName || user.name).slice(0, 2).toUpperCase() : 'BG'}
+                      </div>
+                    )}
                     <div>
                       <div style={{ fontSize: '17px', fontWeight: 800, color: 'var(--text-primary)' }}>
-                        {user?.name || 'BudGi Member'}
+                        {displayName || user?.name || 'BudGi Member'}
                       </div>
                       <div style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500 }}>
                         @{user?.username || (user?.email ? user.email.split('@')[0] : 'explorer')}

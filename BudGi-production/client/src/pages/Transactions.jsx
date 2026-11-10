@@ -507,7 +507,14 @@ export default function Transactions() {
                       )}
                     </td>
                     <td>
-                      <span className={`txn-type-badge txn-type-${tx.type}`}>{tx.type}</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span className={`txn-type-badge txn-type-${tx.type}`}>{tx.type}</span>
+                        {tx.accountLast4 && (
+                          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                            {tx.method?.toLowerCase().includes('card') ? 'CC ••' : tx.method?.toLowerCase().includes('upi') ? 'UPI ••' : 'A/C ••'}{tx.accountLast4}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       {tx.type === 'transfer' || tx.category === 'Transfer' ? (
@@ -572,6 +579,11 @@ export default function Transactions() {
                       <div className="txn-card-title">{tx.alias || tx.merchant || tx.description || 'Uncategorized'}</div>
                       <div className="txn-card-date" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
                         <CategoryPill category={tx.category} size="xs" />
+                        {tx.accountLast4 && (
+                          <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                            {tx.method?.toLowerCase().includes('card') ? '💳 CC ••' : tx.method?.toLowerCase().includes('upi') ? '⚡ ••' : '🏦 ••'}{tx.accountLast4}
+                          </span>
+                        )}
                         <span style={{ color: 'var(--text-muted)' }}>•</span>
                         <span>{format(new Date(tx.date), 'dd MMM')}</span>
                       </div>

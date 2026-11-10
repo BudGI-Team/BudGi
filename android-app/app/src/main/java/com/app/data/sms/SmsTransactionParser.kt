@@ -679,34 +679,29 @@ class SmsTransactionParser @Inject constructor(
     }
 
     /**
-     * Extract merchant name with enhanced heuristics.
+     * Extract merchant name with enhanced heuristics and strict word boundaries.
      */
     private fun extractMerchant(body: String, upiId: String?): String? {
-        val lowerBody = body.lowercase(Locale.US)
-
-        // 1. Direct match for known popular Indian merchants (Swiggy, Zomato, etc.)
-        for ((key, displayName) in KNOWN_MERCHANT_MAP) {
-            if (lowerBody.contains(key)) {
-                return displayName
-            }
-        }
-
-        // 2. Extract from UPI ID first
+        // 1. Extract from UPI ID first (most specific identifier)
         if (!upiId.isNullOrBlank()) {
+            val registryMatch = upiRegistry.lookup(upiId)
+            if (registryMatch != null && registryMatch.merchantName.isNotBlank()) {
+                return registryMatch.merchantName
+            }
             val upiMerchant = extractMerchantFromUpiId(upiId)
             if (upiMerchant != null && !PAYMENT_APP_NAMES.contains(upiMerchant.lowercase(Locale.US))) {
                 return upiMerchant
             }
         }
 
-        // 3. Try structured text patterns
+        // 2. Try structured text patterns
         val toPatterns = listOf(
             // VPA: merchant@bank or to VPA merchant.name@okaxis
             Pattern.compile("""(?:vpa[:\s]+|to\s+vpa\s+)([A-Za-z0-9._-]+@[a-zA-Z]{2,20})""", Pattern.CASE_INSENSITIVE),
             // Info: NEFT/merchant name/ref
             Pattern.compile("""(?:Info[:\s]*NEFT[/-]|NEFT/(?:DR|CR)/\d+/)([A-Za-z0-9\s._-]+?)(?:[/-]|\s+ref|\s*\.|\s*$)""", Pattern.CASE_INSENSITIVE),
             // "Cr. to MERCHANT." or "transfer to MERCHANT Ref" or "towards MERCHANT"
-            Pattern.compile("""(?:cr\.?\s+to|paid\s+to|sent\s+to|transferred\s+to|transfer\s+to|towards|thru|through|to)\s+([A-Za-z0-9@._\-]+(?:\s+[A-Za-z0-9@._\-]+)*)(?:\.|\s+ref|\s+on|\s+via|\s+using|\n|$)""", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("""(?:cr\.?\s+to|paid\s+to|sent\s+to|transferred\s+to|transfer\s+to|towards|thru|through|to)\s+([A-Za-z0-9@._\-*&'/]+(?:\s+[A-Za-z0-9@._\-*&'/]+)*)(?:\.|\s+ref|\s+on|\s+via|\s+using|\n|$)""", Pattern.CASE_INSENSITIVE),
             // Info: UPI-BLINKIT or Info: UPI/ZEPTO/381283
             Pattern.compile("""(?:Info[:\s]*UPI[/-]|UPI/(?:DR|CR)/\d+/)([A-Za-z0-9\s._-]+?)(?:[/-]|\s+ref|\s*\.|\s*$)""", Pattern.CASE_INSENSITIVE),
             // "transfer from Divyanshu Dixit Ref No"
@@ -729,16 +724,26 @@ class SmsTransactionParser @Inject constructor(
                             return fromVpa
                         }
                     }
-                    // Clean up trailing noise words matched greedily
-                    merchant = merchant.replace(Regex("""\s+(ref|on|via|txn|at|date|using|upi).*$""", RegexOption.IGNORE_CASE), "")
-                    val cleaned = merchant.trim()
+                    // Strip gateway prefixes (e.g. BIL*NETFLIX -> NETFLIX, RZP*SWIGGY -> SWIGGY)
+                    val deMasked = MerchantNormalizer.stripGatewayPrefix(merchant)
+                    val cleaned = deMasked.replace(Regex("""\s+(ref|on|via|txn|at|date|using|upi).*$""", RegexOption.IGNORE_CASE), "").trim()
                     val lowerCleaned = cleaned.lowercase(Locale.US)
                     if (cleaned.isNotBlank() && !NOISE_WORDS.contains(lowerCleaned) && !PAYMENT_APP_NAMES.contains(lowerCleaned)) {
-                        return cleaned.replaceFirstChar { it.uppercase() }
+                        // Check if de-masked string matches known merchant dictionary
+                        val known = KNOWN_MERCHANT_MAP[lowerCleaned] ?: upiRegistry.lookup(lowerCleaned)?.merchantName
+                        return known ?: cleaned.split(" ").filter { it.isNotBlank() }.joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
                     }
                 }
             }
         }
+
+        // 3. Fallback: Word-boundary scan for known popular Indian merchants (prevents substring collisions like SOLAR -> Ola)
+        for ((pattern, displayName) in KNOWN_MERCHANT_PATTERNS) {
+            if (pattern.matcher(body).find()) {
+                return displayName
+            }
+        }
+
         return null
     }
 
@@ -878,6 +883,10 @@ class SmsTransactionParser @Inject constructor(
             "lenskart" to "Lenskart",
             "firstcry" to "FirstCry"
         )
+
+        private val KNOWN_MERCHANT_PATTERNS: List<Pair<Pattern, String>> = KNOWN_MERCHANT_MAP.map { (key, displayName) ->
+            Pattern.compile("\\b" + Pattern.quote(key) + "\\b", Pattern.CASE_INSENSITIVE) to displayName
+        }
 
         private val TRANSACTION_ACTION_KEYWORDS = listOf(
             "dr.", "dr ", "cr.", "cr ", "dr. from", "cr. to", "cr. in",

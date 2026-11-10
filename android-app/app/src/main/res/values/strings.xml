@@ -4,8 +4,8 @@
     <!-- App Shortcuts -->
     <string name="shortcut_add_transaction">Add Expense</string>
     <string name="shortcut_add_transaction_long">Record a new transaction</string>
-    <string name="shortcut_ai_chat">BudGi AI</string>
-    <string name="shortcut_ai_chat_long">Chat with your AI financial advisor</string>
+    <string name="shortcut_ai_chat">Terminal</string>
+    <string name="shortcut_ai_chat_long">Execute commands in the ledger terminal</string>
     <string name="shortcut_sync">Sync SMS</string>
     <string name="shortcut_sync_long">Scan and auto-sync bank SMS</string>
     <string name="shortcut_budgets">Budgets</string>

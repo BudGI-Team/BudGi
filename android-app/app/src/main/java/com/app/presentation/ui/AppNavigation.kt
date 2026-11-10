@@ -73,7 +73,7 @@ private val destinations = listOf(
     AppDestination("transactions", R.string.transactions_title, Icons.AutoMirrored.Filled.ReceiptLong, Icons.AutoMirrored.Outlined.ReceiptLong),
     AppDestination("goals", R.string.goals_title, Icons.Filled.Flag, Icons.Outlined.Flag),
     AppDestination("budget", R.string.budget_title, Icons.Filled.AccountBalanceWallet, Icons.Outlined.AccountBalanceWallet),
-    AppDestination("ai_chat", R.string.copilot_title, Icons.Filled.AutoAwesome, Icons.Outlined.AutoAwesome)
+    AppDestination("ai_chat", R.string.copilot_title, Icons.Filled.Terminal, Icons.Outlined.Terminal)
 )
 
 /**
@@ -462,7 +462,7 @@ fun FinanceAppRoot(
                                 onNavigateToBudget = { navController.navigate("budget") },
                                 onNavigateToInsights = { navController.navigate("insights") },
                                 onNavigateToAIChat = { navController.navigate("ai_chat") },
-                                onNavigateToSpaces = { navController.navigate("spaces_graph") },
+                                onNavigateToSpaces = { navController.navigate("spaces") },
                                 onNavigateToNotifications = { navController.navigate("profile_notifications") },
                                 onReviewTransaction = viewModel::quickReviewTransaction,
                                 onApplyCategoryRule = viewModel::applyCategoryToMerchant,
@@ -544,7 +544,8 @@ fun FinanceAppRoot(
                         composable(
                             route = "ai_chat",
                             deepLinks = listOf(
-                                navDeepLink { uriPattern = "budgi://ai_chat" }
+                                navDeepLink { uriPattern = "budgi://ai_chat" },
+                                navDeepLink { uriPattern = "budgi://chat" }
                             )
                         ) {
                             AIChatScreen(
@@ -554,10 +555,14 @@ fun FinanceAppRoot(
                         }
                         
                         navigation(startDestination = "spaces", route = "spaces_graph") {
-                            composable("spaces") {
+                            composable(
+                                route = "spaces",
+                                deepLinks = listOf(navDeepLink { uriPattern = "budgi://spaces" })
+                            ) {
                                 com.app.presentation.ui.spaces.CollaborativeSpacesScreen(
                                     windowSizeClass = windowSizeClass,
-                                    onNavigateToSpace = { id -> navController.navigate("space_detail/$id") }
+                                    onNavigateToSpace = { id -> navController.navigate("space_detail/$id") },
+                                    onBack = { navController.popBackStack() }
                                 )
                             }
                             composable("space_detail/{spaceId}") { backStackEntry ->
@@ -598,7 +603,10 @@ fun FinanceAppRoot(
                         }
 
                         navigation(startDestination = "profile", route = "profile_graph") {
-                            composable("profile") {
+                            composable(
+                                route = "profile",
+                                deepLinks = listOf(navDeepLink { uriPattern = "budgi://profile" })
+                            ) {
                                 ProfileScreen(
                                     windowSizeClass = windowSizeClass,
                                     onNavigate = { route -> navController.navigate(route) },
@@ -606,10 +614,14 @@ fun FinanceAppRoot(
                                         navController.navigate("auth_graph") {
                                             popUpTo("main_graph") { inclusive = true }
                                         }
-                                    }
+                                    },
+                                    onBack = { navController.popBackStack() }
                                 )
                             }
-                            composable("profile_security") {
+                            composable(
+                                route = "profile_security",
+                                deepLinks = listOf(navDeepLink { uriPattern = "budgi://profile_security" })
+                            ) {
                                 SecurityScreen(
                                     onBack = { navController.popBackStack() },
                                     onAccountDeleted = {

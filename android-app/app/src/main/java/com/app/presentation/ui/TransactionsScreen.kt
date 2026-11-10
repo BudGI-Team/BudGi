@@ -1208,7 +1208,7 @@ fun TransactionsScreen(
                                 TransactionItem(
                                     merchant = transaction.alias?.takeIf { it.isNotBlank() } ?: transaction.merchant ?: transaction.sender,
                                     category = transaction.category,
-                                    amount = "%,.0f".format(transaction.amount),
+                                    amount = if (transaction.amount % 1.0 == 0.0) "%,.0f".format(transaction.amount) else "%,.2f".format(transaction.amount),
                                     date = DateUtils.formatDisplayTime(transaction.date, transaction.timestamp),
                                     type = transaction.type,
                                     splitDetails = transaction.splitDetails,

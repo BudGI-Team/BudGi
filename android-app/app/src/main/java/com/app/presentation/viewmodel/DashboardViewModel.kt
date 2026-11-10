@@ -322,15 +322,14 @@ class DashboardViewModel @Inject constructor(
 
     fun readAndProcessSms() {
         viewModelScope.launch {
-            _uiState.update { it.copy(loading = true, error = null) }
+            _uiState.update { it.copy(syncing = true, loading = true, error = null) }
             runCatching {
                 processSmsUseCase()
             }.onSuccess {
                 syncWithServer() // Automatically push newly parsed SMS to server
             }.onFailure { error ->
-                _uiState.update { it.copy(error = error.message ?: "Failed to read SMS") }
+                _uiState.update { it.copy(syncing = false, loading = false, error = error.message ?: "Failed to read SMS") }
             }
-            _uiState.update { it.copy(loading = false) }
         }
     }
 
@@ -339,10 +338,10 @@ class DashboardViewModel @Inject constructor(
             _uiState.update { it.copy(syncing = true, syncMessage = null) }
             syncTransactionsUseCase()
                 .onSuccess {
-                    _uiState.update { it.copy(syncing = false, syncMessage = "Synced successfully") }
+                    _uiState.update { it.copy(syncing = false, loading = false, syncMessage = "Ledger synchronized") }
                 }
                 .onFailure { e ->
-                    _uiState.update { it.copy(syncing = false, error = e.message ?: "Sync failed") }
+                    _uiState.update { it.copy(syncing = false, loading = false, error = e.message ?: "Sync failed") }
                 }
         }
     }

@@ -205,7 +205,8 @@ class BankSmsTemplateEngine @Inject constructor() {
 
     private fun cleanMerchant(raw: String?): String? {
         if (raw.isNullOrBlank()) return null
-        val cleaned = raw
+        val deMasked = MerchantNormalizer.stripGatewayPrefix(raw)
+        val cleaned = deMasked
             .replace(Regex("""^\s*[./\\-]+"""), "")
             .replace(Regex("""\s*[./\\-]+\s*$"""), "")
             .trim()

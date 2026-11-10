@@ -31,7 +31,7 @@ object MerchantNormalizer {
     )
 
     private val GATEWAY_PREFIXES = Regex(
-        """^(rzp|payu|ccavenue|billdesk|cashfree|razorpay|paytm|phonepe|gpay|upi|amazonpay|simpl|cred)\*?""",
+        """^(bil|billdesk|rzp|razorpay|payu|ccavenue|cashfree|pinelabs|airpay|paytm|phonepe|gpay|upi|amazonpay|simpl|cred)[*_\-/:\s]+""",
         RegexOption.IGNORE_CASE
     )
 
@@ -87,14 +87,25 @@ object MerchantNormalizer {
     }
 
     /**
+     * Strips gateway prefixes like BIL*, BILLDESK*, RAZORPAY*, PAYTM*, PINELABS* from raw merchant string.
+     */
+    fun stripGatewayPrefix(raw: String?): String {
+        if (raw.isNullOrBlank()) return ""
+        return GATEWAY_PREFIXES.replace(raw.trim(), "").trim()
+    }
+
+    /**
      * Extracts a clean, human-readable display name from a raw payee name or UPI ID.
      * E.g. "ramesh.kumar98@okaxis" → "Ramesh Kumar"
      *      "gupta.brothers.sweets@icici" → "Gupta Brothers Sweets"
      *      "tea.stall.01@paytm" → "Tea Stall"
+     *      "BIL*NETFLIX" → "Netflix"
+     *      "RAZORPAY*SWIGGY" → "Swiggy"
      */
     fun extractFriendlyName(merchant: String?, upiId: String?): String {
         if (!merchant.isNullOrBlank() && !merchant.equals("merchant", ignoreCase = true) && !merchant.matches(Regex("""^\d+$"""))) {
-            val cleaned = merchant.replace(Regex("""\s+(ref|on|via|txn|at|date|using|upi).*$""", RegexOption.IGNORE_CASE), "").trim()
+            val deMasked = stripGatewayPrefix(merchant)
+            val cleaned = deMasked.replace(Regex("""\s+(ref|on|via|txn|at|date|using|upi).*$""", RegexOption.IGNORE_CASE), "").trim()
             if (cleaned.isNotBlank() && !cleaned.contains("@")) {
                 return cleaned.split(" ").filter { it.isNotBlank() }.joinToString(" ") { word ->
                     word.lowercase(Locale.US).replaceFirstChar { it.uppercase() }

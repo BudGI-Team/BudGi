@@ -275,9 +275,9 @@ fun NotificationsScreen(
                                 "Your account is secure. No suspicious activity or scam attempts detected."
                             )
                             "Insights" -> Triple(
-                                Icons.Outlined.AutoAwesome,
+                                Icons.Outlined.Insights,
                                 "No Insights Yet",
-                                "As you record transactions, AI analytics will generate financial recommendations."
+                                "As you record transactions, ledger analytics will generate cash flow and spending optimizations."
                             )
                             "Goals" -> Triple(
                                 Icons.Outlined.EmojiEvents,
@@ -457,7 +457,7 @@ private fun PolishedNotificationCard(
             item.type == "sync" ->
                 Triple(CategoryColors.Bills, "SYNC", Icons.Outlined.Sync)
             item.type.contains("insight", true) || item.type.contains("summary", true) ->
-                Triple(CategoryColors.Shopping, "AI INSIGHT", Icons.Outlined.AutoAwesome)
+                Triple(CategoryColors.Shopping, "LEDGER INSIGHT", Icons.Outlined.Insights)
             else ->
                 Triple(CategoryColors.Transport, "NOTIFICATION", Icons.Outlined.Notifications)
         }

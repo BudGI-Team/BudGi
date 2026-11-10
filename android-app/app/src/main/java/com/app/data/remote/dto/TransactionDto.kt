@@ -24,6 +24,7 @@ data class TransactionDto(
     @SerializedName("createdAt") val createdAt: String? = null,
     @SerializedName("updatedAt") val updatedAt: String? = null,
     // SMS-specific fields
+    @SerializedName("method") val method: String? = null,
     @SerializedName("timestamp") val timestamp: Long? = null,
     @SerializedName("upiId") val upiId: String? = null,
     @SerializedName("referenceNumber") val referenceNumber: String? = null,
