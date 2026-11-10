@@ -69,7 +69,7 @@ private const val ANOMALY_Z_SCORE_THRESHOLD = 2.5
 private const val ANOMALY_MIN_SAMPLES = 5
 
 class TransactionRepositoryImpl @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val smsReader: SmsReader,
     private val parser: SmsTransactionParser,
     private val transactionDao: TransactionDao,
@@ -885,7 +885,7 @@ class TransactionRepositoryImpl @Inject constructor(
             val preservedAlias = existing.alias ?: dto.alias
             val preservedCategory = if (existing.categorySource == "UserLearned") existing.category else dto.category
             val preservedSource = if (existing.categorySource == "UserLearned") existing.categorySource else (dto.categorySource ?: "Default")
-            val preservedReviewed = existing.isReviewed || (dto.isReviewed ?: true)
+            val preservedReviewed = existing.isReviewed || dto.isReviewed
 
             return dto.toEntity().copy(
                 id = existing.id,

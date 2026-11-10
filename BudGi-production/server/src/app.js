@@ -129,13 +129,18 @@ app.get('/', (_req, res) => {
 });
 
 // ── 9. Health check — no auth, no rate limit ─────────────────────────────────
+let serverVersion = '3.1.0';
+try {
+  serverVersion = require('../package.json').version || '3.1.0';
+} catch (_) {}
+
 app.get('/health', (_req, res) => {
   res.json({
     success: true,
     message: 'OK',
     data: {
       status: 'healthy',
-      version: process.env.npm_package_version ?? '3.0.0',
+      version: serverVersion,
       env: env.NODE_ENV,
       uptime: Math.round(process.uptime()),
       timestamp: new Date().toISOString(),

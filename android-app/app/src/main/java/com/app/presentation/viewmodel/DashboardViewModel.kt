@@ -61,7 +61,7 @@ private data class CombinedDashboardData(
 
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val getDashboardAnalyticsUseCase: GetDashboardAnalyticsUseCase,
     private val getTransactionsUseCase: GetTransactionsUseCase,
     private val processSmsUseCase: ProcessSmsUseCase,
